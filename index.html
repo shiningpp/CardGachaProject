@@ -655,7 +655,8 @@
                     { label: '色相偏移', min: 0, max: 1, step: 0.01, def: 0 },
                     { label: '对比度', min: 0.5, max: 4, step: 0.05, def: 1.6 },
                     { label: '饱和度', min: 0, max: 1, step: 0.01, def: 0.8 },
-                    { label: '内置纹样（无图案贴图时）', type: 'select', options: ['菱格', '斜纹', '圆点', '六边形', '鱼鳞', '波浪', '十字星', '同心圆', '雾纹'], def: 0 }
+                    { label: '内置纹样（无图案贴图时）', type: 'select', options: ['菱格', '斜纹', '圆点', '六边形', '青海波（鱼鳞）', '波浪', '十字星', '同心圆', '雾纹', '编织', '蜂窝点', '嵌套菱形', '雕花波纹', '四瓣星'], def: 0 },
+                    { label: '反射光强弱对比', min: 0, max: 3, step: 0.05, def: 1.2 }
                 ],
                 tex: [
                     { k: 'pattern', label: '图案贴图（平铺，可选，缺省为菱格）' },
@@ -761,16 +762,34 @@
             if (t < 2.5) { vec2 f = fract(pu*12.0)-0.5; return 1.0-smoothstep(0.28,0.38,length(f)); }
             if (t < 3.5) return smoothstep(0.3, 0.5, hexd(hexLocal(pu*6.0)));
             if (t < 4.5) {
-                vec2 g = vec2(pu.x*8.0+0.5*mod(floor(pu.y*8.0),2.0), pu.y*8.0);
-                return 0.5+0.5*sin(length(fract(g)-vec2(0.5,0.0))*28.0);
+                vec2 g = pu*8.0;
+                float dd = min(length(fract(g)-0.5), length(fract(g-0.5)-0.5));
+                return 0.5+0.5*cos(dd*22.0);
             }
             if (t < 5.5) return 0.5+0.5*sin(pu.y*30.0+sin(pu.x*10.0)*2.0);
             if (t < 6.5) {
                 vec2 f = fract(pu*8.0)-0.5;
                 return max((1.0-smoothstep(0.0,0.06,abs(f.x)))*(1.0-smoothstep(0.0,0.4,abs(f.y))), (1.0-smoothstep(0.0,0.06,abs(f.y)))*(1.0-smoothstep(0.0,0.4,abs(f.x))));
             }
-            if (t < 7.5) return 0.5+0.5*sin(length(pu-0.5)*60.0);
-            return fbm(pu*8.0);
+            if (t < 7.5) return 0.5+0.5*sin(length(fract(pu*2.0)-0.5)*40.0);
+            if (t < 8.5) return fbm(pu*8.0);
+            if (t < 9.5) {
+                vec2 g = pu*6.0; vec2 c = floor(g); vec2 f = fract(g);
+                float st = mod(c.x+c.y, 2.0) < 0.5 ? 0.5+0.5*sin(f.x*18.85-1.5708) : 0.5+0.5*sin(f.y*18.85-1.5708);
+                return st*(0.6+0.4*sin(f.x*3.1416)*sin(f.y*3.1416));
+            }
+            if (t < 10.5) return 1.0-smoothstep(0.12, 0.2, length(hexLocal(pu*6.0)));
+            if (t < 11.5) { vec2 f = fract(pu*3.0)-0.5; return 0.5+0.5*cos((abs(f.x)+abs(f.y))*36.0); }
+            if (t < 12.5) { float w = sin(12.566*pu.x)+sin(12.566*pu.y); return 0.5+0.5*sin(w*6.0); }
+            vec2 f = fract(pu*5.0)-0.5;
+            float rr = 0.1+0.32*pow(abs(cos(2.0*atan(f.y, f.x+1e-5))), 1.5);
+            return 1.0-smoothstep(rr*0.6, rr, length(f));
+        }
+        float pattVal(vec2 pu){
+            float v;
+            if (uHas.w > 0.5) v = dot(texture2D(uPattern, fract(pu)).rgb, vec3(0.3333));
+            else v = patt(pu, uP[6]);
+            return clamp((v-0.5)*uP[4]+0.5, 0.0, 1.0);
         }
 
         void main(){
@@ -869,15 +888,19 @@
                 a = clamp(b1*(0.6+0.8*lum), 0.0, 1.0)*uP[0]*mask;
             } else if (abs(uEffect-6.0) < 0.5) {
                 vec2 pu = (uv-0.5)*asp*uP[1] + 0.5;
-                float v;
-                if (uHas.w > 0.5) {
-                    v = dot(texture2D(uPattern, fract(pu)).rgb, vec3(0.3333));
-                } else {
-                    v = patt(pu, uP[6]);
-                }
-                v = clamp((v-0.5)*uP[4]+0.5, 0.0, 1.0);
-                col = hsv(fract(uP[3] + v*0.5 + dot(d, vec2(1.2,0.8))*uP[2]*1.6), uP[5], 1.0);
-                a = clamp(v*(0.4+lum*0.8), 0.0, 1.0)*uP[0]*mask;
+                float v = pattVal(pu);
+                // 由纹样高度推算局部法线，反射光交汇处更闪，其余位置较暗
+                float e = 1.5/uRes.y*uP[1];
+                float gx = pattVal(pu+vec2(e,0.0)) - pattVal(pu-vec2(e,0.0));
+                float gy = pattVal(pu+vec2(0.0,e)) - pattVal(pu-vec2(0.0,e));
+                vec3 n = normalize(vec3(-gx, gy, 2.0*e/0.08));
+                vec3 L = normalize(vec3((m.x-uv.x)*uBoxAsp, -(m.y-uv.y), 0.8));
+                vec3 H = normalize(L+vec3(0.0,0.0,1.0));
+                float spec = pow(max(dot(n,H),0.0), 30.0);
+                float broad = pow(max(H.z,0.0), 12.0);
+                float shine = 0.3 + uP[7]*(1.4*spec + 0.5*broad);
+                col = hsv(fract(uP[3] + v*0.5 + dot(d, vec2(1.2,0.8))*uP[2]*1.6 + dot(n.xy, vec2(1.5,1.2))), uP[5], 1.0);
+                a = v*(0.4+lum*0.8)*shine*uP[0]*mask;
             }
             float fm = 1.0;
             if (uMode > 0.5) {
