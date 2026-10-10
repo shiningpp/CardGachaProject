@@ -483,7 +483,8 @@
                 
                 <div class="input-group" style="max-width: 300px;">
                     <label>卡包名称</label>
-                    <input type="text" id="packTitleInput" value="我的第一套卡包" placeholder="请输入卡包名称">
+                    <input type="text" id="packTitleInput" value="我的第一套卡包" placeholder="请输入卡包名称" oninput="saveDraft()">
+                    <span id="draftStatus" style="font-size: 11px; color: #666;"></span>
                 </div>
 
                 <div class="template-selector">
@@ -498,7 +499,7 @@
 
                 <div class="finish-panel">
                     <h3 style="color: #ffd700; font-size: 15px;">✨ 套组特效变体与出率</h3>
-                    <p style="font-size: 12px; color: #a0a0ab;">每次抽到卡片后，再按下面的权重随机决定它带哪种加工特效（与稀有度无关，N 卡也可能是镖射）。变体特效会叠加在卡片自身的特效之上。</p>
+                    <p style="font-size: 12px; color: #a0a0ab;">每次抽到卡片后，再按模板里的固定出率随机决定它带哪种加工变体（与稀有度无关，N 卡也可能是镭射）。特效层和整体反光都在变体里设置，每个变体的特效层数有上限。设置会自动保存在浏览器里。</p>
                     <div class="template-selector" id="finishTemplates"></div>
                     <div id="finishList"></div>
                 </div>
@@ -658,26 +659,27 @@
         const SUPPLY_DEFAULT = { N: 100, SR: 50, SSR: 10 };
 
         // 特效层：type/p/tex 会发布，files 仅是本地待上传的文件
-        const newFx = type => ({ type, p: FX[type].params.map(x => x.def), tex: {}, files: {} });
+        const newFx = type => ({ type, p: FX[type].params.map(x => x.def), tex: {}, files: {}, target: 'art' });
         const normLayer = f => ({ ...newFx(f.type), ...f, files: f.files || {} });
         const getFxs = card => (Array.isArray(card.fxs) ? card.fxs : (card.fx ? [card.fx] : [])).filter(f => f && FX[f.type]);
 
+        // rate 为固定出率，maxFx 为该变体最多可叠加的特效层数
         const FINISH_TEMPLATES = {
-            none: { name: '无变体', list: [{ name: '普通', rate: 100, fxs: [] }] },
+            none: { name: '无变体', list: [{ name: '普通', rate: 100, maxFx: 0, fxs: [] }] },
             standard: { name: '标准', list: [
-                { name: '普通', rate: 86, fxs: [] },
-                { name: '镖射', rate: 12, fxs: ['pattern'] },
-                { name: '彩虹闪耀', rate: 2, fxs: ['holo', 'glitter'] }
+                { name: '普通', rate: 86, maxFx: 0, fxs: [] },
+                { name: '镭射', rate: 12, maxFx: 1, fxs: ['pattern'] },
+                { name: '彩虹闪耀', rate: 2, maxFx: 2, fxs: ['holo', 'glitter'] }
             ] },
             rich: { name: '丰富', list: [
-                { name: '普通', rate: 68, fxs: [] },
-                { name: '扫光', rate: 18, fxs: ['sweep'] },
-                { name: '镖射', rate: 10, fxs: ['pattern', 'sweep'] },
-                { name: '全息闪粉', rate: 3, fxs: ['holo', 'glitter'] },
-                { name: '星河', rate: 1, fxs: ['galaxy', 'foil'] }
+                { name: '普通', rate: 68, maxFx: 0, fxs: [] },
+                { name: '扫光', rate: 18, maxFx: 1, fxs: ['sweep'] },
+                { name: '镭射', rate: 10, maxFx: 2, fxs: ['pattern', 'sweep'] },
+                { name: '全息闪粉', rate: 3, maxFx: 2, fxs: ['holo', 'glitter'] },
+                { name: '星河', rate: 1, maxFx: 3, fxs: ['galaxy', 'foil', 'sweep'] }
             ] }
         };
-        const cloneFinishes = key => FINISH_TEMPLATES[key].list.map((f, i) => ({ id: 'f' + i, name: f.name, rate: f.rate, fxs: f.fxs.map(t => newFx(t)) }));
+        const cloneFinishes = key => FINISH_TEMPLATES[key].list.map((f, i) => ({ id: 'f' + i, name: f.name, rate: f.rate, maxFx: f.maxFx, gloss: { s: 0.35, r: 0.5 }, fxs: f.fxs.map(t => newFx(t)) }));
         const getPackFinishes = pack => (pack.finishes && pack.finishes.length) ? pack.finishes : [{ id: 'f0', name: '普通', rate: 100, fxs: [] }];
 
         const FONTS = [
@@ -922,9 +924,10 @@
         }
 
         function layerSpec(card, layer) {
-            if (layer === 'art') return { image: card.image, fxs: getFxs(card), mode: 0 };
+            const all = getFxs(card);
+            if (layer === 'art') return { image: card.image, fxs: all.filter(f => f.target !== 'frame'), mode: 0 };
             const f = getFrame(card);
-            return { image: f.image, fxs: f.fxs, mode: 1, y0: 1 - f.height / 100, panel: f.panel ? 1 : 0, img: f.image ? 1 : 0 };
+            return { image: f.image, fxs: [...f.fxs, ...all.filter(x => x.target === 'frame' || x.target === 'both')], mode: 1, y0: 1 - f.height / 100, panel: f.panel ? 1 : 0, img: f.image ? 1 : 0 };
         }
 
         // layer: 'art' 铺满整张卡；'frame' 仅在底板/边框图不透明区域生效
@@ -1008,10 +1011,69 @@
             ]
         };
 
+        // 草稿按套组模板 / 变体模板分别保存，切换模板不会丢失已有设定（本地文件对象无法存储，图片以 dataURL 保存）
+        const DRAFT_KEY = 'cardDraft_v2';
+        const slotDrafts = {};
+        const finishSets = {};
         let currentTemplateKey = 'mini';
-        let currentDraftSlots = JSON.parse(JSON.stringify(templates.mini));
-        currentDraftSlots.forEach(ensureSlotFx);
-        let currentFinishes = cloneFinishes('standard');
+        let currentFinishTpl = 'standard';
+        let saveTimer = 0;
+
+        function getSlotDraft(k) {
+            if (!slotDrafts[k]) {
+                slotDrafts[k] = JSON.parse(JSON.stringify(templates[k]));
+                slotDrafts[k].forEach(ensureSlotFx);
+            }
+            return slotDrafts[k];
+        }
+        const getFinishSet = k => finishSets[k] || (finishSets[k] = cloneFinishes(k));
+
+        function setDraftStatus(msg) {
+            const el = document.getElementById('draftStatus');
+            if (el) el.textContent = msg;
+        }
+        function saveDraft() {
+            clearTimeout(saveTimer);
+            saveTimer = setTimeout(() => {
+                try {
+                    localStorage.setItem(DRAFT_KEY, JSON.stringify({
+                        tpl: currentTemplateKey, finTpl: currentFinishTpl,
+                        title: document.getElementById('packTitleInput').value,
+                        slots: slotDrafts, finishes: finishSets
+                    }, (k, v) => (k === 'file' || k === 'files') ? undefined : v));
+                    setDraftStatus('设定已自动保存');
+                } catch (e) { setDraftStatus('自动保存失败（可能超出浏览器存储上限）'); }
+            }, 400);
+        }
+        function loadDraft() {
+            let d = null;
+            try { d = JSON.parse(localStorage.getItem(DRAFT_KEY)); } catch (e) { /* 损坏的草稿直接忽略 */ }
+            if (!d) return;
+            if (templates[d.tpl]) currentTemplateKey = d.tpl;
+            if (FINISH_TEMPLATES[d.finTpl]) currentFinishTpl = d.finTpl;
+            if (typeof d.title === 'string') document.getElementById('packTitleInput').value = d.title;
+            Object.keys(templates).forEach(k => {
+                const s = d.slots && d.slots[k];
+                if (Array.isArray(s) && s.length === templates[k].length) { slotDrafts[k] = s; s.forEach(ensureSlotFx); }
+            });
+            // 出率、特效层上限以模板为准，只恢复名称、反光、特效层
+            Object.keys(FINISH_TEMPLATES).forEach(k => {
+                const saved = d.finishes && d.finishes[k];
+                if (!Array.isArray(saved)) return;
+                const base = cloneFinishes(k);
+                base.forEach((f, i) => {
+                    const s = saved[i];
+                    if (!s) return;
+                    f.name = s.name || f.name;
+                    f.gloss = { ...f.gloss, ...(s.gloss || {}) };
+                    f.fxs = (s.fxs || []).filter(x => x && FX[x.type]).slice(0, f.maxFx).map(normLayer);
+                });
+                finishSets[k] = base;
+            });
+        }
+        loadDraft();
+        let currentDraftSlots = getSlotDraft(currentTemplateKey);
+        let currentFinishes = getFinishSet(currentFinishTpl);
         let cloudPacks = [defaultPack];
         let selectedPack = defaultPack;
 
@@ -1060,30 +1122,36 @@
         }
 
         // --- 1. 套组工坊逻辑 ---
+        function syncTplButtons() {
+            document.getElementById('tplMini').className = `template-card ${currentTemplateKey === 'mini' ? 'selected' : ''}`;
+            document.getElementById('tplStandard').className = `template-card ${currentTemplateKey === 'standard' ? 'selected' : ''}`;
+        }
+
         function selectTemplate(key) {
             currentTemplateKey = key;
-            currentDraftSlots = JSON.parse(JSON.stringify(templates[key]));
-            currentDraftSlots.forEach(ensureSlotFx);
-            document.getElementById('tplMini').className = `template-card ${key === 'mini' ? 'selected' : ''}`;
-            document.getElementById('tplStandard').className = `template-card ${key === 'standard' ? 'selected' : ''}`;
+            currentDraftSlots = getSlotDraft(key);
+            syncTplButtons();
             renderWorkshopSlots();
             renderFinishPanel();
+            saveDraft();
         }
 
         function ensureSlotFx(slot) {
-            slot.fxs = getFxs(slot).map(normLayer);
+            slot.fxs = []; // 槽位专属特效预留（如 distortion、动图动画），目前留空
             delete slot.fx;
-            slot.gloss = getGloss(slot);
+            delete slot.gloss;
             slot.frame = getFrame(slot);
-            slot.frame.fxs = slot.frame.fxs.map(normLayer);
+            slot.frame.fxs = [];
             delete slot.frame.fx;
             slot.frame.file = null;
             slot.text = { tag: getText(slot, 'tag'), name: getText(slot, 'name'), desc: getText(slot, 'desc') };
             if (slot.supply === undefined) slot.supply = SUPPLY_DEFAULT[slot.rarity] || 50;
+            if (slot.previewFin === undefined) slot.previewFin = 0;
         }
 
         const slotBindings = [];
         const slotCards = [];
+        const slotPreviews = [];
 
         // 统一的卡面渲染：卡图铺满 + 卡图特效 + 底板/边框 + 边框特效 + 文字
         function buildCard(card, width, opts = {}) {
@@ -1165,9 +1233,18 @@
         }
         document.addEventListener('keydown', e => { if (e.key === 'Escape') closeZoom(); });
 
+        // 槽位预览卡 = 槽位数据 + 所选变体（特效层与整体反光）
+        const composeFinishCard = (base, fin) => ({ ...base, fxs: [...getFxs(base), ...fin.fxs], gloss: fin.gloss, finishName: fin.fxs.length ? fin.name : '' });
+        function composeSlotPreview(slot) {
+            const fin = currentFinishes[Math.min(slot.previewFin || 0, currentFinishes.length - 1)];
+            return composeFinishCard(slot, fin);
+        }
+
         function refreshSlot(index, pulseMs) {
-            updateCardView(slotCards[index], currentDraftSlots[index]);
+            Object.assign(slotPreviews[index], composeSlotPreview(currentDraftSlots[index]));
+            updateCardView(slotCards[index], slotPreviews[index]);
             if (pulseMs) slotBindings[index].pulse(pulseMs);
+            saveDraft();
         }
 
         function renderWorkshopSlots() {
@@ -1175,6 +1252,7 @@
             grid.innerHTML = '';
             slotBindings.length = 0;
             slotCards.length = 0;
+            slotPreviews.length = 0;
 
             currentDraftSlots.forEach((slot, index) => {
                 const box = document.createElement('div');
@@ -1205,10 +1283,16 @@
                     <div class="fx-panel"></div>
                 `;
                 grid.appendChild(box);
-                const card = buildCard(slot, 150);
+                const preview = composeSlotPreview(slot);
+                slotPreviews[index] = preview;
+                const card = buildCard(preview, 150);
                 box.querySelector('.slot-preview-holder').appendChild(card);
                 slotCards[index] = card;
                 slotBindings[index] = card.fxBinding;
+                mkSelect(box.querySelector('.slot-fields'), '预览变体效果', currentFinishes.map((f, i) => [i, f.name]), Math.min(slot.previewFin || 0, currentFinishes.length - 1), v => {
+                    slot.previewFin = parseInt(v, 10);
+                    refreshSlot(index, 2000);
+                });
                 renderSlotEditor(index, box.querySelector('.fx-panel'));
             });
         }
@@ -1266,11 +1350,8 @@
             const change = ms => refreshSlot(index, ms);
             panel.innerHTML = '';
 
-            buildFxStack(mkSection(panel, '✨ 卡面特效（可叠加，与稀有度无关）', true), slot, change);
-
-            const gb = mkSection(panel, '💧 表面反光');
-            mkRange(gb, '反光强度', slot.gloss, 's', 0, 1, 0.01, () => change(1500));
-            mkRange(gb, '表面光滑度（粗糙 → 光滑）', slot.gloss, 'r', 0, 1, 0.01, () => change(1500));
+            const xb = mkSection(panel, '✨ 槽位专属特效', false);
+            xb.innerHTML = '<div style="font-size:11px;color:#666;">预留：以后在这里加入 Distortion、WebP 动图动画等槽位专属特效。镜射、彩虹、流光等加工特效请在上方“套组特效变体”里设置。</div>';
 
             const fb = mkSection(panel, '🖼 边框');
             const fr = slot.frame;
@@ -1292,14 +1373,6 @@
             clr.className = 'mini-btn'; clr.textContent = '移除边框图片';
             clr.onclick = () => { fr.image = ''; fr.file = null; fileIn.value = ''; change(0); };
             fb.appendChild(clr);
-            const sub = document.createElement('div');
-            sub.className = 'fx-sec-body';
-            fb.appendChild(sub);
-            sub.innerHTML = '<label style="font-size:11px;color:#ffd700;">边框特效（仅作用于底板/边框图的不透明区域）</label>';
-            const subBody = document.createElement('div');
-            subBody.className = 'fx-sec-body';
-            sub.appendChild(subBody);
-            buildFxStack(subBody, fr, change);
 
             const tb = mkSection(panel, '🔤 文字样式');
             const tbody = document.createElement('div');
@@ -1322,7 +1395,7 @@
         }
 
         // layer: 特效层对象（type/p/tex/files）；pulse(ms) 刷新预览
-        function buildFxEditor(panel, layer, pulse) {
+        function buildFxEditor(panel, layer, pulse, showTarget = false) {
             const fx = layer, def = FX[fx.type];
             panel.innerHTML = '';
 
@@ -1336,12 +1409,17 @@
             });
             sel.value = fx.type;
             sel.onchange = () => {
+                const target = layer.target;
                 Object.assign(layer, newFx(sel.value));
-                buildFxEditor(panel, layer, pulse);
+                layer.target = target || 'art';
+                buildFxEditor(panel, layer, pulse, showTarget);
                 pulse(2000);
             };
             selGroup.appendChild(sel);
             panel.appendChild(selGroup);
+            if (showTarget) {
+                mkSelect(panel, '作用范围', [['art', '卡面'], ['frame', '边框'], ['both', '卡面+边框']], layer.target || 'art', v => { layer.target = v; pulse(1500); });
+            }
 
             def.tex.forEach(t => {
                 const g = document.createElement('div');
@@ -1391,13 +1469,13 @@
             });
         }
 
-        // 可叠加的特效层列表：owner.fxs
-        function buildFxStack(panel, owner, onChange) {
+        // 可叠加的特效层列表：owner.fxs，最多 max 层
+        function buildFxStack(panel, owner, onChange, max = MAX_LAYERS, showTarget = false) {
             panel.innerHTML = '';
             if (!owner.fxs.length) {
                 const hint = document.createElement('div');
                 hint.style.cssText = 'font-size:11px;color:#666;';
-                hint.textContent = '暂无特效层（仅显示基础反光）';
+                hint.textContent = max ? '暂无特效层' : '此变体不带特效层，仅有整体反光';
                 panel.appendChild(hint);
             }
             owner.fxs.forEach((layer, i) => {
@@ -1405,91 +1483,81 @@
                 box.className = 'fx-layer';
                 const head = document.createElement('div');
                 head.className = 'fx-layer-head';
-                head.innerHTML = `<span>特效层 ${i + 1}</span>`;
+                head.innerHTML = `<span>特效层 ${i + 1} / ${max}</span>`;
                 const del = document.createElement('button');
                 del.className = 'mini-btn'; del.textContent = '删除';
-                del.onclick = () => { owner.fxs.splice(i, 1); buildFxStack(panel, owner, onChange); onChange(1500); };
+                del.onclick = () => { owner.fxs.splice(i, 1); buildFxStack(panel, owner, onChange, max, showTarget); onChange(1500); };
                 head.appendChild(del);
                 box.appendChild(head);
                 const body = document.createElement('div');
                 body.className = 'fx-sec-body';
                 box.appendChild(body);
-                buildFxEditor(body, layer, onChange);
+                buildFxEditor(body, layer, onChange, showTarget);
                 panel.appendChild(box);
             });
-            if (owner.fxs.length < MAX_LAYERS) {
+            if (owner.fxs.length < max) {
                 const add = document.createElement('button');
-                add.className = 'mini-btn'; add.textContent = '＋ 添加特效层';
-                add.onclick = () => { owner.fxs.push(newFx('holo')); buildFxStack(panel, owner, onChange); onChange(2000); };
+                add.className = 'mini-btn'; add.textContent = `＋ 添加特效层（${owner.fxs.length}/${max}）`;
+                add.onclick = () => { owner.fxs.push(newFx('holo')); buildFxStack(panel, owner, onChange, max, showTarget); onChange(2000); };
                 panel.appendChild(add);
             }
         }
-
-        let finSeq = 0;
-        const composeFinishCard = (base, fin) => ({ ...base, fxs: [...getFxs(base), ...fin.fxs], finishName: fin.name });
 
         function renderFinishPanel() {
             const tplBox = document.getElementById('finishTemplates');
             tplBox.innerHTML = '<span style="font-size: 13px; font-weight: bold;">出率模板：</span>';
             Object.keys(FINISH_TEMPLATES).forEach(k => {
                 const d = document.createElement('div');
-                d.className = 'template-card';
+                d.className = 'template-card' + (k === currentFinishTpl ? ' selected' : '');
                 d.innerHTML = `<strong>${esc(FINISH_TEMPLATES[k].name)}</strong> <span style="font-size:11px;color:#a0a0ab;">${FINISH_TEMPLATES[k].list.map(f => esc(f.name) + ' ' + f.rate + '%').join(' / ')}</span>`;
-                d.onclick = () => { currentFinishes = cloneFinishes(k); renderFinishPanel(); };
+                d.onclick = () => {
+                    currentFinishTpl = k;
+                    currentFinishes = getFinishSet(k);
+                    renderFinishPanel();
+                    renderWorkshopSlots();
+                    saveDraft();
+                };
                 tplBox.appendChild(d);
             });
 
             const list = document.getElementById('finishList');
             list.innerHTML = '';
-            const pcts = [];
-            const updatePcts = () => {
-                const total = currentFinishes.reduce((s, f) => s + f.rate, 0) || 1;
-                currentFinishes.forEach((f, i) => { pcts[i].textContent = `实际出率 ${(f.rate / total * 100).toFixed(1)}%`; });
-            };
-            currentFinishes.forEach((fin, i) => {
+            const total = currentFinishes.reduce((s, f) => s + f.rate, 0) || 1;
+            currentFinishes.forEach(fin => {
                 const box = document.createElement('div');
                 box.className = 'slot-card-box';
                 box.innerHTML = '<div class="slot-main"><div class="slot-preview-holder"></div><div class="slot-fields"></div></div>';
                 const preview = composeFinishCard(currentDraftSlots[0], fin);
-                const previewEl = buildCard(preview, 110, { zoom: false });
+                const previewEl = buildCard(preview, 110);
                 box.querySelector('.slot-preview-holder').appendChild(previewEl);
                 const change = ms => {
                     Object.assign(preview, composeFinishCard(currentDraftSlots[0], fin));
                     updateCardView(previewEl, preview);
                     if (ms) previewEl.fxBinding.pulse(ms);
+                    currentDraftSlots.forEach((_, j) => refreshSlot(j, 0));
                 };
                 const fields = box.querySelector('.slot-fields');
                 const nameIn = document.createElement('input');
                 nameIn.type = 'text'; nameIn.value = fin.name;
                 nameIn.oninput = () => { fin.name = nameIn.value; change(0); };
                 mkInput(fields, '变体名称', nameIn);
-                mkRange(fields, '出现权重', fin, 'rate', 0, 100, 1, () => updatePcts());
                 const pct = document.createElement('div');
                 pct.className = 'fx-tex-status';
-                pcts[i] = pct;
+                pct.textContent = `固定出率 ${(fin.rate / total * 100).toFixed(1)}%，特效层上限 ${fin.maxFx}`;
                 fields.appendChild(pct);
-                if (currentFinishes.length > 1) {
-                    const del = document.createElement('button');
-                    del.className = 'mini-btn'; del.textContent = '删除此变体';
-                    del.onclick = () => { currentFinishes.splice(i, 1); renderFinishPanel(); };
-                    fields.appendChild(del);
-                }
-                const sec = mkSection(box, '✨ 变体特效层', false);
-                buildFxStack(sec, fin, change);
+                mkRange(fields, '反光强度', fin.gloss, 's', 0, 1, 0.01, () => change(1500));
+                mkRange(fields, '表面光滑度（粗糙 → 光滑）', fin.gloss, 'r', 0, 1, 0.01, () => change(1500));
+                const sec = mkSection(box, `✨ 变体特效层（最多 ${fin.maxFx} 层）`, false);
+                buildFxStack(sec, fin, change, fin.maxFx, true);
                 list.appendChild(box);
             });
-            updatePcts();
-
-            const add = document.createElement('button');
-            add.className = 'mini-btn'; add.textContent = '＋ 添加特效变体';
-            add.onclick = () => { currentFinishes.push({ id: 'f' + Date.now() + (finSeq++), name: '新变体', rate: 5, fxs: [newFx('holo')] }); renderFinishPanel(); };
-            list.appendChild(add);
         }
 
         function updateSlotSupply(index, input) {
             const v = Math.max(1, Math.min(9999, parseInt(input.value, 10) || 1));
             currentDraftSlots[index].supply = v;
             input.value = v;
+            saveDraft();
         }
 
         function updateSlotData(index, field, value) {
@@ -1580,13 +1648,21 @@
             const { data: { publicUrl } } = dbClient.storage.from('card-images').getPublicUrl(fileName);
             return publicUrl;
         }
+        // 选择的本地文件或草稿恢复的 dataURL 都会被上传，已是网址的直接保留
+        async function ensureUploaded(file, url, label) {
+            if (file) return uploadToBucket(file, label);
+            if (url && url.startsWith('data:')) {
+                const blob = await (await fetch(url)).blob();
+                return uploadToBucket(new File([blob], 'upload.' + (blob.type.split('/')[1] || 'png'), { type: blob.type }), label);
+            }
+            return url;
+        }
         async function uploadLayers(layers, label) {
             const out = [];
             for (const layer of layers) {
-                const o = { type: layer.type, p: layer.p, tex: {} };
+                const o = { type: layer.type, p: layer.p, tex: {}, target: layer.target || 'art' };
                 for (const k of Object.keys(layer.tex || {})) {
-                    const f = layer.files && layer.files[k];
-                    if (f) o.tex[k] = await uploadToBucket(f, `${label} ${k} 贴图`);
+                    o.tex[k] = await ensureUploaded(layer.files && layer.files[k], layer.tex[k], `${label} ${k} 贴图`);
                 }
                 out.push(o);
             }
@@ -1617,26 +1693,19 @@
                 // 套组级特效变体（无需改数据库结构，随每张卡一起存入 cards JSON）
                 const finishes = [];
                 for (const fin of currentFinishes) {
-                    finishes.push({ id: fin.id, name: fin.name, rate: fin.rate, fxs: await uploadLayers(fin.fxs, `变体 ${fin.name}`) });
+                    finishes.push({ id: fin.id, name: fin.name, rate: fin.rate, gloss: fin.gloss, fxs: await uploadLayers(fin.fxs, `变体 ${fin.name}`) });
                 }
                 // 1. 遍历槽位，将玩家上传的图片文件依次存入 Supabase Storage 存储桶
                 let processedCards = [];
                 for (let i = 0; i < currentDraftSlots.length; i++) {
                     let slot = currentDraftSlots[i];
-                    let imageUrl = slot.image;
-
-                    if (slot.file) {
-                        imageUrl = await uploadToBucket(slot.file, `图片 ${i + 1}`);
-                    }
+                    let imageUrl = await ensureUploaded(slot.file, slot.image, `图片 ${i + 1}`);
 
                     const fxs = await uploadLayers(slot.fxs, `槽位 ${i + 1}`);
                     const fr = slot.frame;
-                    let frameImage = fr.image;
-                    if (fr.file) frameImage = await uploadToBucket(fr.file, `槽位 ${i + 1} 边框图`);
-                    else if (frameImage && frameImage.startsWith('data:')) frameImage = '';
+                    const frameImage = await ensureUploaded(fr.file, fr.image, `槽位 ${i + 1} 边框图`);
                     const frame = {
-                        color: fr.color, opacity: fr.opacity, height: fr.height, panel: fr.panel, image: frameImage,
-                        fxs: await uploadLayers(fr.fxs, `槽位 ${i + 1} 边框`)
+                        color: fr.color, opacity: fr.opacity, height: fr.height, panel: fr.panel, image: frameImage || ''
                     };
 
                     processedCards.push({
@@ -1646,7 +1715,6 @@
                         image: imageUrl,
                         desc: slot.desc,
                         fxs,
-                        gloss: slot.gloss,
                         frame,
                         text: slot.text,
                         supply: slot.supply,
@@ -1683,6 +1751,7 @@
 
         renderWorkshopSlots();
         renderFinishPanel();
+        syncTplButtons();
 
         // --- 2. 抽卡中心逻辑（从 Supabase 加载卡包并定向抽取） ---
         async function fetchCloudPacksAndRender() {
@@ -1851,7 +1920,8 @@
                 const fin = pickFinish(finishes);
                 const snap = { ...drawn };
                 delete snap.fx; delete snap.finishes; delete snap.remaining;
-                snap.fxs = [...getFxs(drawn), ...fin.fxs.map(({ type, p, tex }) => ({ type, p, tex }))];
+                snap.fxs = [...getFxs(drawn), ...fin.fxs.map(({ type, p, tex, target }) => ({ type, p, tex, target }))];
+                snap.gloss = fin.gloss || drawn.gloss;
                 snap.finishName = fin.fxs.length ? fin.name : '';
                 drawnCards.push(snap);
 
