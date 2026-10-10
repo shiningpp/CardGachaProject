@@ -811,7 +811,7 @@
 
             if (abs(uEffect-1.0) < 0.5) {
                 float ha = radians(uP[6]); vec2 hd = vec2(cos(ha), sin(ha));
-                float t = (dot((uv-0.5)*asp, hd) + dot(d, hd)*abs(uP[7]))*uP[1] + uP[2];
+                float t = (dot((uv-0.5)*asp, hd) - dot(d, hd)*abs(uP[7]))*uP[1] + uP[2];
                 float band = pow(0.5+0.5*sin(t*12.566+1.0), uP[4]);
                 col = hsv(fract(t), uP[3], 1.0);
                 float glow = smoothstep(uP[5], 0.0, distance(p, m*asp));
@@ -820,7 +820,7 @@
                 vec3 acc = vec3(0.0);
                 for (int i=0;i<3;i++){
                     float fi = float(i);
-                    vec2 q = (p + d*uP[2]*(fi+1.0)*0.25) * uP[1]*(8.0+fi*6.0);
+                    vec2 q = (p - d*uP[2]*(fi+1.0)*0.25) * uP[1]*(8.0+fi*6.0);
                     vec2 c = floor(q); vec2 f = fract(q)-0.5;
                     float r = hash21(c+fi*17.0);
                     vec2 o = (vec2(hash21(c+3.1),hash21(c+7.7))-0.5)*0.2;
@@ -837,8 +837,8 @@
                     float tw = mix(1.0, 0.5+0.5*sin(uTime*4.0+r*60.0), uP[5]);
                     acc += s*tw*hsv(fract(uP[4]+r*0.3), 0.35, 1.0);
                 }
-                float n = fbm(p*2.5 + d*uP[2]*0.6);
-                float n2 = fbm(p*5.0 - d*uP[2]*0.3 + 3.0);
+                float n = fbm(p*2.5 - d*uP[2]*0.6);
+                float n2 = fbm(p*5.0 + d*uP[2]*0.3 + 3.0);
                 vec3 neb = hsv(fract(uP[4]+n2*0.35), 0.75, 1.0)*n*n*uP[3]*1.6;
                 col = acc+neb;
                 float mx = max(col.r, max(col.g, col.b));
@@ -887,7 +887,7 @@
                 a = clamp(spec*1.5 + uP[2]*0.4*diff*(0.3+lum), 0.0, 1.0)*uP[0]*mask;
             } else if (abs(uEffect-5.0) < 0.5) {
                 float ang = radians(uP[2]); vec2 dir = vec2(cos(ang), sin(ang));
-                float x = dot((uv-0.5)*asp, dir) + dot(d, dir)*abs(uP[6]);
+                float x = dot((uv-0.5)*asp, dir) - dot(d, dir)*abs(uP[6]);
                 float sp = uP[5];
                 x -= sp*floor(x/sp+0.5);
                 float w = uP[1];
@@ -1691,7 +1691,7 @@
                 st.mx += (tx - st.mx) * 0.25;
                 st.my += (ty - st.my) * 0.25;
                 st.fade += ((on ? 1 : 0) - st.fade) * 0.15;
-                const rxT = st.hover ? (0.5 - st.my) * 30 : 0, ryT = st.hover ? (st.mx - 0.5) * 30 : 0;
+                const rxT = st.hover ? (st.my - 0.5) * 30 : 0, ryT = st.hover ? (0.5 - st.mx) * 30 : 0;
                 st.rx += (rxT - st.rx) * 0.2;
                 st.ry += (ryT - st.ry) * 0.2;
 
