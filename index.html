@@ -489,7 +489,7 @@
         // ==========================================
         const SUPABASE_URL = 'https://mjimhvgxmdfxsaxrovgk.supabase.co';
         const SUPABASE_KEY = 'sb_publishable_Nen01dKziVN6GjzWs_3yxw_2n3Y62Gt';
-        const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+        const dbClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
         // 默认官方卡包（作为初始兜底）
         const defaultPack = {
@@ -682,14 +682,14 @@
                         const fileName = `${Date.now()}_${Math.random().toString(36).substring(2, 9)}.${fileExt}`;
                         
                         // 调用 Supabase Storage 上传
-                        const { data: uploadData, error: uploadError } = await supabase.storage
+                        const { data: uploadData, error: uploadError } = await dbClient.storage
                             .from('card-images')
                             .upload(fileName, slot.file);
 
                         if (uploadError) throw new Error(`图片 ${i+1} 上传失败: ` + uploadError.message);
 
                         // 获取公开访问 URL
-                        const { data: { publicUrl } } = supabase.storage
+                        const { data: { publicUrl } } = dbClient.storage
                             .from('card-images')
                             .getPublicUrl(fileName);
                         
@@ -706,7 +706,7 @@
                 }
 
                 // 2. 将整个卡包数据写入 Supabase `card_packs` 数据库表
-                const { error: dbError } = await supabase
+                const { error: dbError } = await dbClient
                     .from('card_packs')
                     .insert([
                         { 
@@ -739,7 +739,7 @@
             container.innerHTML = '<p style="font-size: 12px; color: #a0a0ab;">正在从云端同步卡包...</p>';
 
             try {
-                const { data, error } = await supabase.from('card_packs').select('*');
+                const { data, error } = await dbClient.from('card_packs').select('*');
                 if (error) throw error;
 
                 cloudPacks = [defaultPack];
