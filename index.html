@@ -1245,12 +1245,25 @@
             return c;
         }
 
+        // 卡面图按原始比例铺满卡面（cover）后保留完整尺寸，平移/缩放时不再被预先裁掉边缘
+        function layoutArt(art, card) {
+            const av = getArt(card);
+            const ca = 220 / 320;
+            const ia = art.naturalWidth && art.naturalHeight ? art.naturalWidth / art.naturalHeight : ca;
+            let w = 100, h = 100;
+            if (ia > ca) w = ia / ca * 100; else h = ca / ia * 100;
+            Object.assign(art.style, {
+                width: w + '%', height: h + '%', left: (100 - w) / 2 + '%', top: (100 - h) / 2 + '%', objectFit: 'fill',
+                transform: `translate(${av.x}cqw, ${(av.y * 320 / 220).toFixed(3)}cqw) scale(${av.zoom})`
+            });
+        }
+
         function updateCardView(c, card) {
             c.querySelector('.card').className = 'card ' + ({ N: 'n', SR: 'sr', SSR: 'ssr' }[card.rarity] || 'n');
             const art = c.querySelector('.art-img');
             if (art.getAttribute('src') !== card.image) art.src = card.image;
-            const av = getArt(card);
-            art.style.transform = `translate(${av.x}%, ${av.y}%) scale(${av.zoom})`;
+            art.onload = () => layoutArt(art, card);
+            layoutArt(art, card);
 
             const f = getFrame(card);
             const panel = c.querySelector('.frame-panel');
