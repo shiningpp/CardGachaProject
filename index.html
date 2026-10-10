@@ -5,6 +5,13 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>网页抽卡工具 - 自定义套组卡池版</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <!-- 引入 Supabase 客户端 -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script>
+        const SUPABASE_URL = 'https://mjimhvgxmdfxsaxrovgk.supabase.co';
+        const SUPABASE_KEY = 'sb_publishable_Nen01dKziVN6GjzWs_3yxw_2n3Y62Gt';
+        const supabase = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+    </script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap');
 
