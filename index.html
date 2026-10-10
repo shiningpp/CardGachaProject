@@ -772,7 +772,7 @@
 
             if (abs(uEffect-1.0) < 0.5) {
                 float ha = radians(uP[6]); vec2 hd = vec2(cos(ha), sin(ha));
-                float t = (dot((uv-0.5)*asp, hd) - dot(d, hd)*uP[7])*uP[1] + uP[2];
+                float t = (dot((uv-0.5)*asp, hd) + dot(d, hd)*uP[7])*uP[1] + uP[2];
                 float band = pow(0.5+0.5*sin(t*12.566+1.0), uP[4]);
                 col = hsv(fract(t), uP[3], 1.0);
                 float glow = smoothstep(uP[5], 0.0, distance(p, m*asp));
@@ -831,7 +831,7 @@
                 a = clamp(spec*1.5 + uP[2]*0.4*diff*(0.3+lum), 0.0, 1.0)*uP[0]*mask;
             } else if (abs(uEffect-5.0) < 0.5) {
                 float ang = radians(uP[2]); vec2 dir = vec2(cos(ang), sin(ang));
-                float x = dot((uv-0.5)*asp, dir) - dot(d, dir)*uP[6];
+                float x = dot((uv-0.5)*asp, dir) + dot(d, dir)*uP[6];
                 float sp = uP[5];
                 x -= sp*floor(x/sp+0.5);
                 float w = uP[1];
