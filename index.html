@@ -118,7 +118,8 @@
             border-radius: 16px;
             position: relative;
             transform-style: preserve-3d;
-            transition: transform 0.1s ease-out, box-shadow 0.3s ease;
+            transition: box-shadow 0.3s ease;
+            -webkit-font-smoothing: antialiased;
             box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
             border: 2px solid rgba(255, 215, 0, 0.4);
         }
@@ -157,6 +158,7 @@
             border-radius: 8px;
             overflow: hidden;
             background: #000;
+            position: relative;
         }
 
         .card-image-box img {
@@ -181,13 +183,12 @@
 
         .card-shine {
             position: absolute;
-            inset: 0;
-            border-radius: 14px;
-            z-index: 2;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
             pointer-events: none;
-            mix-blend-mode: color-dodge;
-            opacity: 0;
-            transition: opacity 0.3s ease;
+            mix-blend-mode: screen;
         }
 
         /* 1. 套组工坊样式 */
@@ -223,7 +224,7 @@
 
         .slots-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+            grid-template-columns: repeat(auto-fill, minmax(min(100%, 360px), 1fr));
             gap: 20px;
         }
 
@@ -235,7 +236,22 @@
             display: flex;
             flex-direction: column;
             gap: 10px;
+            min-width: 0;
         }
+        .slot-main { display: flex; gap: 15px; align-items: flex-start; }
+        .slot-preview-card { flex: none; }
+        .slot-fields { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 6px; }
+        .fx-panel {
+            border-top: 1px dashed #3f3f4e;
+            padding-top: 10px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            min-width: 0;
+        }
+        .fx-row label { display: flex; justify-content: space-between; font-size: 11px; color: #a0a0ab; }
+        .fx-row input[type=range] { width: 100%; accent-color: #ffd700; }
+        .fx-tex-status { font-size: 10px; color: #4cd137; }
 
         .slot-header {
             font-size: 13px;
@@ -248,10 +264,13 @@
             flex-direction: column;
             gap: 4px;
         }
+        .input-group { min-width: 0; }
         .input-group label { font-size: 11px; color: #a0a0ab; }
-        .input-group input, .input-group textarea {
+        .input-group input, .input-group textarea, .input-group select {
             background: #1e1e24; border: 1px solid #3f3f4e; padding: 6px 10px; border-radius: 6px; color: #fff; font-size: 12px;
+            width: 100%; min-width: 0; max-width: 100%;
         }
+        .input-group input[type=file] { padding: 4px; font-size: 11px; }
         .input-group textarea { resize: none; height: 45px; }
 
         .action-btn {
@@ -349,15 +368,31 @@
         }
 
         .card-container.reveal-anim {
-            animation: cardPopIn 0.6s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
-            opacity: 0;
-            transform: scale(0.3) translateY(100px);
+            animation: cardPopIn 0.6s cubic-bezier(0.175, 0.885, 0.32, 1.275) backwards;
         }
 
         @keyframes cardPopIn {
             0% { opacity: 0; transform: scale(0.3) translateY(100px) rotateX(20deg); }
-            100% { opacity: 1; transform: scale(0.85) translateY(0) rotateX(0deg); }
+            100% { opacity: 1; transform: none; }
         }
+
+        .pack-contents {
+            text-align: left;
+            background: #15151c;
+            border: 1px solid #2f2f3d;
+            border-radius: 12px;
+            padding: 12px;
+            margin-top: 12px;
+        }
+        .pack-contents h4 { font-size: 13px; color: #ffd700; margin-bottom: 8px; }
+        .rate-summary { display: flex; gap: 12px; font-size: 12px; margin-bottom: 8px; flex-wrap: wrap; }
+        .pc-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 8px; max-height: 190px; overflow-y: auto; }
+        .pc-item { display: flex; gap: 8px; align-items: center; background: #1e1e26; border-radius: 8px; padding: 6px; min-width: 0; }
+        .pc-item img { width: 40px; height: 40px; object-fit: cover; border-radius: 6px; flex: none; }
+        .pc-info { min-width: 0; font-size: 12px; }
+        .pc-info b { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .pc-info span { font-size: 11px; color: #a0a0ab; }
+        .r-N { color: #a0a0ab; } .r-SR { color: #409cff; } .r-SSR { color: #ffd700; }
 
         /* 3. 集卡册样式 */
         .collection-grid {
@@ -459,6 +494,8 @@
                         <h2 style="color: #ffd700; margin-bottom: 5px;" id="selectedPackTitle">正在加载卡包...</h2>
                         <p style="color: #a0a0ab; font-size: 13px;" id="selectedPackDesc">单抽 10 金币 | 五连抽 45 金币</p>
                     </div>
+
+                    <div class="pack-contents" id="packContents"></div>
                     
                     <div class="gacha-result" id="gachaResult">
                         <p style="color: #666;">请在左侧选择一个卡包，然后点击下方按钮开始抽卡</p>
@@ -491,6 +528,319 @@
         const SUPABASE_KEY = 'sb_publishable_Nen01dKziVN6GjzWs_3yxw_2n3Y62Gt';
         const dbClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
+        const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+        // ==========================================
+        // 卡牌特效引擎：共享一个离屏 WebGL 上下文，仅对悬停的卡牌渲染，再拷贝到该卡的 canvas
+        // 蒙版/法线/图案贴图与卡面图使用同样的 cover 映射，建议与卡面图同比例
+        // ==========================================
+        const FX = {
+            none: { id: 0, name: '无特效', params: [], tex: [] },
+            holo: {
+                id: 1, name: '全息彩虹 Holo',
+                params: [
+                    { label: '强度', min: 0, max: 1.5, step: 0.01, def: 0.8 },
+                    { label: '色带密度', min: 0.5, max: 8, step: 0.1, def: 3 },
+                    { label: '色相偏移', min: 0, max: 1, step: 0.01, def: 0 },
+                    { label: '饱和度', min: 0, max: 1, step: 0.01, def: 0.7 },
+                    { label: '色带锐度', min: 0.3, max: 8, step: 0.1, def: 1.5 },
+                    { label: '光斑范围', min: 0.1, max: 1.5, step: 0.01, def: 0.6 }
+                ],
+                tex: [{ k: 'mask', label: '蒙版贴图（白=显示特效，可选）' }]
+            },
+            galaxy: {
+                id: 2, name: '星河 Galaxy',
+                params: [
+                    { label: '强度', min: 0, max: 1.5, step: 0.01, def: 0.9 },
+                    { label: '星点密度', min: 0.3, max: 3, step: 0.05, def: 1 },
+                    { label: '视差深度', min: 0, max: 3, step: 0.05, def: 1.2 },
+                    { label: '星云浓度', min: 0, max: 2, step: 0.05, def: 0.8 },
+                    { label: '色相', min: 0, max: 1, step: 0.01, def: 0.6 },
+                    { label: '闪烁', min: 0, max: 1, step: 0.01, def: 0.6 }
+                ],
+                tex: [{ k: 'mask', label: '蒙版贴图（白=显示特效，可选）' }]
+            },
+            glitter: {
+                id: 3, name: '闪粉 Glitter',
+                params: [
+                    { label: '强度', min: 0, max: 1.5, step: 0.01, def: 0.9 },
+                    { label: '颗粒密度', min: 0.3, max: 3, step: 0.05, def: 1 },
+                    { label: '颗粒大小', min: 0.1, max: 1, step: 0.01, def: 0.4 },
+                    { label: '色彩多样性', min: 0, max: 1, step: 0.01, def: 0.5 },
+                    { label: '闪烁锐度', min: 1, max: 12, step: 0.5, def: 4 },
+                    { label: '整体眩光', min: 0, max: 1, step: 0.01, def: 0.4 }
+                ],
+                tex: [{ k: 'mask', label: '蒙版贴图（白=显示特效，可选）' }]
+            },
+            foil: {
+                id: 4, name: '金属镭射 Foil（法线）',
+                params: [
+                    { label: '强度', min: 0, max: 1.5, step: 0.01, def: 0.9 },
+                    { label: '光泽度', min: 4, max: 160, step: 1, def: 40 },
+                    { label: '彩虹程度', min: 0, max: 1, step: 0.01, def: 0.6 },
+                    { label: '色相偏移', min: 0, max: 1, step: 0.01, def: 0 },
+                    { label: '光源高度', min: 0.2, max: 2, step: 0.01, def: 0.8 },
+                    { label: '凹凸强度', min: 0, max: 4, step: 0.05, def: 1.5 }
+                ],
+                tex: [
+                    { k: 'normal', label: '法线贴图（可选，缺省时由卡面图推算）' },
+                    { k: 'mask', label: '蒙版贴图（白=显示特效，可选）' }
+                ]
+            },
+            sweep: {
+                id: 5, name: '流光扫过 Sweep',
+                params: [
+                    { label: '强度', min: 0, max: 1.5, step: 0.01, def: 0.8 },
+                    { label: '光带宽度', min: 0.02, max: 0.5, step: 0.01, def: 0.12 },
+                    { label: '角度', min: 0, max: 180, step: 1, def: 35 },
+                    { label: '色相', min: 0, max: 1, step: 0.01, def: 0.12 },
+                    { label: '边缘锐度', min: 0.5, max: 4, step: 0.05, def: 1.5 },
+                    { label: '副光带', min: 0, max: 1, step: 0.01, def: 0.5 }
+                ],
+                tex: [{ k: 'mask', label: '蒙版贴图（白=显示特效，可选）' }]
+            },
+            pattern: {
+                id: 6, name: '图案镭射 Pattern',
+                params: [
+                    { label: '强度', min: 0, max: 1.5, step: 0.01, def: 0.8 },
+                    { label: '图案缩放', min: 0.3, max: 6, step: 0.05, def: 1.5 },
+                    { label: '视差', min: 0, max: 2, step: 0.01, def: 0.6 },
+                    { label: '色相偏移', min: 0, max: 1, step: 0.01, def: 0 },
+                    { label: '对比度', min: 0.5, max: 4, step: 0.05, def: 1.6 },
+                    { label: '饱和度', min: 0, max: 1, step: 0.01, def: 0.8 }
+                ],
+                tex: [
+                    { k: 'pattern', label: '图案贴图（平铺，可选，缺省为菱格）' },
+                    { k: 'mask', label: '蒙版贴图（白=显示特效，可选）' }
+                ]
+            }
+        };
+        const TEX_UNIT = { mask: 1, normal: 2, pattern: 3 };
+        const DEFAULT_FX_BY_RARITY = { N: 'sweep', SR: 'holo', SSR: 'foil' };
+
+        const newFx = type => ({ type, p: FX[type].params.map(x => x.def), tex: {} });
+        const getFx = card => (card.fx && FX[card.fx.type]) ? card.fx : newFx(DEFAULT_FX_BY_RARITY[card.rarity] || 'none');
+
+        const VERT_SRC = `attribute vec2 aPos; varying vec2 vUv;
+        void main(){ vUv = vec2(aPos.x*0.5+0.5, 0.5-aPos.y*0.5); gl_Position = vec4(aPos,0.0,1.0); }`;
+
+        const FRAG_SRC = `precision highp float;
+        varying vec2 vUv;
+        uniform vec2 uRes; uniform vec2 uMouse; uniform float uTime, uFade, uEffect, uBoxAsp;
+        uniform float uP[6];
+        uniform sampler2D uBase, uMask, uNormal, uPattern;
+        uniform vec4 uHas; uniform vec4 uAsp;
+
+        vec2 cover(vec2 uv, float ta){
+            vec2 s = vec2(1.0);
+            if (ta > uBoxAsp) s.x = uBoxAsp/ta; else s.y = ta/uBoxAsp;
+            return (uv-0.5)*s+0.5;
+        }
+        vec3 hsv(float h, float s, float v){
+            vec3 k = clamp(abs(mod(h*6.0+vec3(0.0,4.0,2.0),6.0)-3.0)-1.0,0.0,1.0);
+            return v*mix(vec3(1.0),k,s);
+        }
+        float hash21(vec2 p){ p = fract(p*vec2(123.34,456.21)); p += dot(p,p+45.32); return fract(p.x*p.y); }
+        float vnoise(vec2 p){
+            vec2 i=floor(p), f=fract(p); f=f*f*(3.0-2.0*f);
+            return mix(mix(hash21(i),hash21(i+vec2(1.0,0.0)),f.x), mix(hash21(i+vec2(0.0,1.0)),hash21(i+vec2(1.0,1.0)),f.x), f.y);
+        }
+        float fbm(vec2 p){ float v=0.0,a=0.5; for(int i=0;i<4;i++){ v+=a*vnoise(p); p*=2.03; a*=0.5; } return v; }
+        float lumAt(vec2 uv){
+            if (uHas.x < 0.5) return 0.5;
+            return dot(texture2D(uBase, cover(uv,uAsp.x)).rgb, vec3(0.299,0.587,0.114));
+        }
+
+        void main(){
+            vec2 uv = vUv; vec2 m = uMouse; vec2 d = m-0.5;
+            vec2 asp = vec2(uBoxAsp,1.0);
+            vec2 p = uv*asp;
+            float mask = 1.0;
+            if (uHas.y > 0.5) mask = texture2D(uMask, cover(uv,uAsp.y)).r;
+            float lum = lumAt(uv);
+            vec3 col = vec3(0.0); float a = 0.0;
+
+            if (abs(uEffect-1.0) < 0.5) {
+                float t = dot(uv-0.5, vec2(0.8,0.6))*uP[1] + dot(d, vec2(1.6,1.2))*uP[1]*0.5 + uP[2];
+                float band = pow(0.5+0.5*sin(t*12.566+1.0), uP[4]);
+                col = hsv(fract(t), uP[3], 1.0);
+                float glow = smoothstep(uP[5], 0.0, distance(p, m*asp));
+                a = uP[0]*(0.25+0.75*band)*(0.35+0.65*glow)*(0.5+lum)*mask;
+            } else if (abs(uEffect-2.0) < 0.5) {
+                vec3 acc = vec3(0.0);
+                for (int i=0;i<3;i++){
+                    float fi = float(i);
+                    vec2 q = (p + d*uP[2]*(fi+1.0)*0.25) * uP[1]*(8.0+fi*6.0);
+                    vec2 c = floor(q); vec2 f = fract(q)-0.5;
+                    float r = hash21(c+fi*17.0);
+                    vec2 o = (vec2(hash21(c+3.1),hash21(c+7.7))-0.5)*0.6;
+                    float s = smoothstep(0.14, 0.0, length(f-o))*step(0.72, r);
+                    float tw = mix(1.0, 0.5+0.5*sin(uTime*4.0+r*60.0), uP[5]);
+                    acc += s*tw*hsv(fract(uP[4]+r*0.3), 0.35, 1.0);
+                }
+                float n = fbm(p*2.5 + d*uP[2]*0.6);
+                float n2 = fbm(p*5.0 - d*uP[2]*0.3 + 3.0);
+                vec3 neb = hsv(fract(uP[4]+n2*0.35), 0.75, 1.0)*n*n*uP[3]*1.6;
+                col = acc+neb;
+                float mx = max(col.r, max(col.g, col.b));
+                col /= max(mx, 0.001);
+                a = clamp(mx, 0.0, 1.0)*uP[0]*mask;
+            } else if (abs(uEffect-3.0) < 0.5) {
+                vec2 q = p*uP[1]*18.0;
+                vec2 c = floor(q); vec2 f = fract(q);
+                float r = hash21(c);
+                vec2 o = vec2(hash21(c+1.7), hash21(c+9.2))*0.6+0.2;
+                vec2 g = f-o; float dist = length(g); float sz = uP[2]*0.5;
+                float shape = smoothstep(sz, 0.0, dist);
+                float cross = smoothstep(sz*0.5, 0.0, min(abs(g.x),abs(g.y)))*smoothstep(sz*2.5, 0.0, dist);
+                float ph = sin(dot(d, vec2(r-0.5, hash21(c+4.4)-0.5)*40.0) + r*6.283 + uTime*1.5);
+                float vis = pow(clamp(ph*0.5+0.5, 0.0, 1.0), uP[4]);
+                float sp = (shape+cross*0.6)*vis*step(0.3, r);
+                col = mix(vec3(1.0), hsv(fract(r*3.0), 0.7, 1.0), uP[3]);
+                float glare = smoothstep(0.8, 0.0, distance(p, m*asp))*uP[5]*0.3;
+                a = clamp(sp*(0.4+lum) + glare*lum, 0.0, 1.0)*uP[0]*mask;
+            } else if (abs(uEffect-4.0) < 0.5) {
+                vec3 n;
+                if (uHas.z > 0.5) {
+                    n = texture2D(uNormal, cover(uv,uAsp.z)).rgb*2.0-1.0;
+                    n.xy *= uP[5];
+                    n = normalize(vec3(n.xy, max(n.z,0.2)));
+                } else {
+                    vec2 e = 1.5/uRes;
+                    float dx = lumAt(uv+vec2(e.x,0.0)) - lumAt(uv-vec2(e.x,0.0));
+                    float dy = lumAt(uv+vec2(0.0,e.y)) - lumAt(uv-vec2(0.0,e.y));
+                    n = normalize(vec3(-dx*uP[5]*3.0, dy*uP[5]*3.0, 1.0));
+                }
+                vec3 L = normalize(vec3((m.x-uv.x)*uBoxAsp, -(m.y-uv.y), uP[4]));
+                vec3 H = normalize(L+vec3(0.0,0.0,1.0));
+                float spec = pow(max(dot(n,H),0.0), uP[1]);
+                vec3 film = hsv(fract(uP[3] + dot(n.xy, vec2(1.2,0.9))*1.5 + dot(d, vec2(0.6,0.4))), 0.85, 1.0);
+                col = mix(vec3(1.0), film, clamp(uP[2],0.0,1.0));
+                float diff = pow(max(dot(n,L),0.0), 2.0);
+                a = clamp(spec*1.5 + uP[2]*0.4*diff*(0.3+lum), 0.0, 1.0)*uP[0]*mask;
+            } else if (abs(uEffect-5.0) < 0.5) {
+                float ang = radians(uP[2]); vec2 dir = vec2(cos(ang), sin(ang));
+                float x = dot((uv-0.5)*asp, dir) - dot(d, dir)*1.5;
+                float w = uP[1];
+                float b1 = exp(-pow(abs(x)/w, uP[4]*2.0));
+                float b2 = exp(-pow(abs(x+w*2.6)/(w*0.5), uP[4]*2.0))*uP[5];
+                col = hsv(uP[3], 0.45, 1.0);
+                a = clamp((b1+b2*0.6)*(0.6+0.8*lum), 0.0, 1.0)*uP[0]*mask;
+            } else if (abs(uEffect-6.0) < 0.5) {
+                vec2 pu = (uv-0.5)*asp*uP[1] + 0.5 + d*uP[2]*0.5;
+                float v;
+                if (uHas.w > 0.5) {
+                    v = dot(texture2D(uPattern, fract(pu)).rgb, vec3(0.3333));
+                } else {
+                    v = abs(sin((pu.x+pu.y)*18.0))*abs(sin((pu.x-pu.y)*18.0));
+                }
+                v = clamp((v-0.5)*uP[4]+0.5, 0.0, 1.0);
+                col = hsv(fract(uP[3] + v*0.5 + dot(d, vec2(1.2,0.8))), uP[5], 1.0);
+                a = clamp(v*(0.4+lum*0.8), 0.0, 1.0)*uP[0]*mask;
+            }
+            a = clamp(a, 0.0, 1.0)*uFade;
+            gl_FragColor = vec4(col*a, a);
+        }`;
+
+        const fxGL = (() => {
+            const canvas = document.createElement('canvas');
+            const gl = canvas.getContext('webgl', { premultipliedAlpha: true, alpha: true });
+            if (!gl) return null;
+            const compile = (type, src) => {
+                const s = gl.createShader(type);
+                gl.shaderSource(s, src); gl.compileShader(s);
+                if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) { console.error(gl.getShaderInfoLog(s)); return null; }
+                return s;
+            };
+            const vs = compile(gl.VERTEX_SHADER, VERT_SRC), fs = compile(gl.FRAGMENT_SHADER, FRAG_SRC);
+            if (!vs || !fs) return null;
+            const prog = gl.createProgram();
+            gl.attachShader(prog, vs); gl.attachShader(prog, fs); gl.linkProgram(prog);
+            if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) { console.error(gl.getProgramInfoLog(prog)); return null; }
+            gl.useProgram(prog);
+            const buf = gl.createBuffer();
+            gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+            gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]), gl.STATIC_DRAW);
+            const loc = gl.getAttribLocation(prog, 'aPos');
+            gl.enableVertexAttribArray(loc);
+            gl.vertexAttribPointer(loc, 2, gl.FLOAT, false, 0, 0);
+            const u = {};
+            ['uRes', 'uMouse', 'uTime', 'uFade', 'uEffect', 'uBoxAsp', 'uP', 'uHas', 'uAsp', 'uBase', 'uMask', 'uNormal', 'uPattern']
+                .forEach(n => u[n] = gl.getUniformLocation(prog, n));
+            gl.uniform1i(u.uBase, 0); gl.uniform1i(u.uMask, 1); gl.uniform1i(u.uNormal, 2); gl.uniform1i(u.uPattern, 3);
+            const blank = gl.createTexture();
+            gl.bindTexture(gl.TEXTURE_2D, blank);
+            gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 1, 1, 0, gl.RGBA, gl.UNSIGNED_BYTE, new Uint8Array([0, 0, 0, 255]));
+            return { canvas, gl, u, blank };
+        })();
+
+        const texCache = new Map();
+        function getTex(url) {
+            if (!url || !fxGL) return null;
+            let e = texCache.get(url);
+            if (!e) {
+                e = { tex: null, w: 1, h: 1, ready: false };
+                texCache.set(url, e);
+                const img = new Image();
+                img.crossOrigin = 'anonymous';
+                img.onload = () => {
+                    try {
+                        const gl = fxGL.gl;
+                        const t = gl.createTexture();
+                        gl.bindTexture(gl.TEXTURE_2D, t);
+                        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+                        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+                        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+                        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+                        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, img);
+                        e.tex = t; e.w = img.naturalWidth; e.h = img.naturalHeight; e.ready = true;
+                    } catch (err) { console.warn('特效贴图加载失败', err); }
+                };
+                img.src = url;
+            }
+            return e.ready ? e : null;
+        }
+
+        function renderFx(cv, card, mx, my, fade) {
+            const ctx = cv.getContext('2d');
+            const fx = getFx(card), def = FX[fx.type];
+            if (!fxGL || !def || !def.id || fade <= 0.001) { ctx.clearRect(0, 0, cv.width, cv.height); return; }
+            const { gl, canvas, u, blank } = fxGL;
+            const dpr = Math.min(window.devicePixelRatio || 1, 2);
+            const w = Math.max(1, Math.round(cv.clientWidth * dpr)), h = Math.max(1, Math.round(cv.clientHeight * dpr));
+            if (cv.width !== w || cv.height !== h) { cv.width = w; cv.height = h; }
+            if (canvas.width !== w || canvas.height !== h) { canvas.width = w; canvas.height = h; }
+            gl.viewport(0, 0, w, h);
+            gl.clearColor(0, 0, 0, 0); gl.clear(gl.COLOR_BUFFER_BIT);
+
+            const has = [0, 0, 0, 0], asp = [1, 1, 1, 1];
+            const bind = (unit, e, idx) => {
+                gl.activeTexture(gl.TEXTURE0 + unit);
+                gl.bindTexture(gl.TEXTURE_2D, e ? e.tex : blank);
+                if (e) { has[idx] = 1; asp[idx] = e.w / e.h; }
+            };
+            bind(0, getTex(card.image), 0);
+            const used = def.tex.map(t => t.k);
+            ['mask', 'normal', 'pattern'].forEach(k => {
+                bind(TEX_UNIT[k], used.includes(k) ? getTex(fx.tex && fx.tex[k]) : null, TEX_UNIT[k]);
+            });
+
+            const p = new Float32Array(6);
+            def.params.forEach((pd, i) => { p[i] = (fx.p && fx.p[i] !== undefined) ? fx.p[i] : pd.def; });
+            gl.uniform2f(u.uRes, w, h);
+            gl.uniform2f(u.uMouse, mx, my);
+            gl.uniform1f(u.uTime, performance.now() / 1000);
+            gl.uniform1f(u.uFade, fade);
+            gl.uniform1f(u.uEffect, def.id);
+            gl.uniform1f(u.uBoxAsp, w / h);
+            gl.uniform1fv(u.uP, p);
+            gl.uniform4fv(u.uHas, has);
+            gl.uniform4fv(u.uAsp, asp);
+            gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+            ctx.clearRect(0, 0, w, h);
+            ctx.drawImage(canvas, 0, 0, w, h);
+        }
+
         // 默认官方卡包（作为初始兜底）
         const defaultPack = {
             id: 'official_default',
@@ -521,6 +871,7 @@
 
         let currentTemplateKey = 'mini';
         let currentDraftSlots = JSON.parse(JSON.stringify(templates.mini));
+        currentDraftSlots.forEach(ensureSlotFx);
         let cloudPacks = [defaultPack];
         let selectedPack = defaultPack;
 
@@ -572,35 +923,43 @@
         function selectTemplate(key) {
             currentTemplateKey = key;
             currentDraftSlots = JSON.parse(JSON.stringify(templates[key]));
+            currentDraftSlots.forEach(ensureSlotFx);
             document.getElementById('tplMini').className = `template-card ${key === 'mini' ? 'selected' : ''}`;
             document.getElementById('tplStandard').className = `template-card ${key === 'standard' ? 'selected' : ''}`;
             renderWorkshopSlots();
         }
 
+        function ensureSlotFx(slot) {
+            if (!slot.fx || !FX[slot.fx.type]) slot.fx = newFx(DEFAULT_FX_BY_RARITY[slot.rarity] || 'none');
+            slot.fxFiles = slot.fxFiles || {};
+        }
+
+        const slotBindings = [];
+
         function renderWorkshopSlots() {
             const grid = document.getElementById('slotsGrid');
             grid.innerHTML = '';
+            slotBindings.length = 0;
 
             currentDraftSlots.forEach((slot, index) => {
                 const box = document.createElement('div');
                 box.className = 'slot-card-box';
                 box.innerHTML = `
-                    <div class="slot-header">槽位 #${index + 1} [稀有度：${slot.rarity}]</div>
-                    <div style="display: flex; gap: 15px; align-items: center;">
+                    <div class="slot-header">槽位 #${index + 1} [稀有度：${esc(slot.rarity)}]</div>
+                    <div class="slot-main">
                         <div class="card-container slot-preview-card" style="width: 120px; height: 170px;">
                             <div class="card ${slot.rarity.toLowerCase()}" style="width: 120px; height: 170px;">
                                 <div class="card-content" style="padding: 6px;">
-                                    <div class="card-header" style="font-size: 10px;"><span>${slot.rarity}</span><span>#SLOT</span></div>
-                                    <div class="card-image-box" style="height: 75px;"><img id="img_preview_${index}" src="${slot.image}" alt=""></div>
-                                    <div class="card-footer"><h3 id="name_preview_${index}" style="font-size: 11px;">${slot.name}</h3><p id="desc_preview_${index}" style="font-size: 8px;">${slot.desc}</p></div>
+                                    <div class="card-header" style="font-size: 10px;"><span>${esc(slot.rarity)}</span><span>#SLOT</span></div>
+                                    <div class="card-image-box" style="height: 75px;"><img id="img_preview_${index}" src="${esc(slot.image)}" alt=""><canvas class="card-shine"></canvas></div>
+                                    <div class="card-footer"><h3 id="name_preview_${index}" style="font-size: 11px;">${esc(slot.name)}</h3><p id="desc_preview_${index}" style="font-size: 8px;">${esc(slot.desc)}</p></div>
                                 </div>
-                                <div class="card-shine"></div>
                             </div>
                         </div>
-                        <div style="flex: 1; display: flex; flex-direction: column; gap: 6px;">
+                        <div class="slot-fields">
                             <div class="input-group">
                                 <label>卡片名称</label>
-                                <input type="text" id="input_name_${index}" value="${slot.name}" oninput="updateSlotData(${index}, 'name', this.value)">
+                                <input type="text" id="input_name_${index}" value="${esc(slot.name)}" oninput="updateSlotData(${index}, 'name', this.value)">
                             </div>
                             <div class="input-group">
                                 <label>卡面图片上传</label>
@@ -608,13 +967,83 @@
                             </div>
                             <div class="input-group">
                                 <label>卡片描述</label>
-                                <textarea oninput="updateSlotData(${index}, 'desc', this.value)">${slot.desc}</textarea>
+                                <textarea oninput="updateSlotData(${index}, 'desc', this.value)">${esc(slot.desc)}</textarea>
                             </div>
                         </div>
                     </div>
+                    <div class="fx-panel"></div>
                 `;
                 grid.appendChild(box);
-                bindCard3D(box.querySelector('.slot-preview-card'), box.querySelector('.card'), box.querySelector('.card-shine'));
+                slotBindings[index] = bindCard3D(box.querySelector('.slot-preview-card'), slot);
+                renderFxControls(index, box.querySelector('.fx-panel'));
+            });
+        }
+
+        function renderFxControls(index, panel) {
+            const slot = currentDraftSlots[index];
+            const fx = slot.fx, def = FX[fx.type];
+            const pulse = ms => slotBindings[index] && slotBindings[index].pulse(ms);
+            panel.innerHTML = '';
+
+            const selGroup = document.createElement('div');
+            selGroup.className = 'input-group';
+            selGroup.innerHTML = '<label>卡片特效</label>';
+            const sel = document.createElement('select');
+            Object.keys(FX).forEach(k => {
+                const o = document.createElement('option');
+                o.value = k; o.textContent = FX[k].name; sel.appendChild(o);
+            });
+            sel.value = fx.type;
+            sel.onchange = () => {
+                slot.fx = newFx(sel.value);
+                slot.fxFiles = {};
+                renderFxControls(index, panel);
+                pulse(2000);
+            };
+            selGroup.appendChild(sel);
+            panel.appendChild(selGroup);
+
+            def.tex.forEach(t => {
+                const g = document.createElement('div');
+                g.className = 'input-group';
+                const lb = document.createElement('label');
+                lb.textContent = t.label;
+                const status = document.createElement('span');
+                status.className = 'fx-tex-status';
+                status.textContent = fx.tex[t.k] ? ' ✔ 已选择' : '';
+                lb.appendChild(status);
+                const inp = document.createElement('input');
+                inp.type = 'file'; inp.accept = 'image/*';
+                inp.onchange = () => {
+                    const file = inp.files[0];
+                    if (!file) return;
+                    const reader = new FileReader();
+                    reader.onload = ev => {
+                        fx.tex[t.k] = ev.target.result;
+                        slot.fxFiles[t.k] = file;
+                        status.textContent = ' ✔ 已选择';
+                        pulse(2000);
+                    };
+                    reader.readAsDataURL(file);
+                };
+                g.appendChild(lb); g.appendChild(inp);
+                panel.appendChild(g);
+            });
+
+            def.params.forEach((pd, i) => {
+                const row = document.createElement('div');
+                row.className = 'fx-row';
+                const cur = fx.p[i] !== undefined ? fx.p[i] : pd.def;
+                row.innerHTML = `<label><span>${esc(pd.label)}</span><span class="fx-val">${cur}</span></label>`;
+                const r = document.createElement('input');
+                r.type = 'range'; r.min = pd.min; r.max = pd.max; r.step = pd.step; r.value = cur;
+                r.oninput = () => {
+                    fx.p[i] = parseFloat(r.value);
+                    row.querySelector('.fx-val').textContent = r.value;
+                    pulse(1500);
+                };
+                row.appendChild(r);
+                panel.appendChild(row);
             });
         }
 
@@ -632,29 +1061,66 @@
                 reader.onload = ev => {
                     currentDraftSlots[index].image = ev.target.result;
                     document.getElementById(`img_preview_${index}`).src = ev.target.result;
+                    if (slotBindings[index]) slotBindings[index].pulse(1500);
                 };
                 reader.readAsDataURL(file);
             }
         }
 
-        function bindCard3D(container, cardElement, shineElement) {
+        // 返回 { pulse(ms) }：无鼠标悬停时也能自动演示特效
+        function bindCard3D(container, card) {
+            const el = container.querySelector('.card');
+            const cv = container.querySelector('.card-shine');
+            const st = { hover: false, tx: 0.5, ty: 0.5, mx: 0.5, my: 0.5, rx: 0, ry: 0, fade: 0, raf: 0, hold: 0 };
+
+            const frame = () => {
+                const now = performance.now();
+                const held = now < st.hold;
+                const on = st.hover || held;
+                let tx = st.tx, ty = st.ty;
+                if (!st.hover && held) { const t = now / 500; tx = 0.5 + 0.32 * Math.cos(t); ty = 0.5 + 0.32 * Math.sin(t * 1.3); }
+                st.mx += (tx - st.mx) * 0.25;
+                st.my += (ty - st.my) * 0.25;
+                st.fade += ((on ? 1 : 0) - st.fade) * 0.15;
+                const rxT = st.hover ? (0.5 - st.my) * 30 : 0, ryT = st.hover ? (st.mx - 0.5) * 30 : 0;
+                st.rx += (rxT - st.rx) * 0.2;
+                st.ry += (ryT - st.ry) * 0.2;
+
+                const idle = !on && st.fade < 0.01 && Math.abs(st.rx) < 0.05 && Math.abs(st.ry) < 0.05;
+                if (idle) {
+                    el.style.transform = '';
+                    renderFx(cv, card, st.mx, st.my, 0);
+                    st.raf = 0;
+                    return;
+                }
+                // 不使用 scale：缩放会使文字层被重采样而变糊
+                el.style.transform = `rotateX(${st.rx.toFixed(2)}deg) rotateY(${st.ry.toFixed(2)}deg) translateZ(20px)`;
+                renderFx(cv, card, st.mx, st.my, st.fade);
+                st.raf = requestAnimationFrame(frame);
+            };
+            const start = () => { if (!st.raf) st.raf = requestAnimationFrame(frame); };
+
+            container.addEventListener('mouseenter', () => { st.hover = true; start(); });
             container.addEventListener('mousemove', (e) => {
                 const rect = container.getBoundingClientRect();
-                const x = e.clientX - rect.left;
-                const y = e.clientY - rect.top;
-                const rotateX = -((y - rect.height/2) / (rect.height/2)) * 15;
-                const rotateY = ((x - rect.width/2) / (rect.width/2)) * 15;
-                cardElement.style.transform = `rotateX(${rotateX}deg) rotateY(${rotateY}deg) scale(1.05)`;
-                shineElement.style.opacity = '0.8';
-                shineElement.style.background = `radial-gradient(circle at ${(x/rect.width)*100}% ${(y/rect.height)*100}%, rgba(255,255,255,0.8) 0%, rgba(255,100,200,0.3) 30%, transparent 70%)`;
+                st.tx = Math.min(1, Math.max(0, (e.clientX - rect.left) / rect.width));
+                st.ty = Math.min(1, Math.max(0, (e.clientY - rect.top) / rect.height));
+                st.hover = true; start();
             });
-            container.addEventListener('mouseleave', () => {
-                cardElement.style.transform = 'rotateX(0deg) rotateY(0deg) scale(1)';
-                shineElement.style.opacity = '0';
-            });
+            container.addEventListener('mouseleave', () => { st.hover = false; start(); });
+
+            return { pulse(ms) { st.hold = performance.now() + ms; start(); } };
         }
 
         // --- 核心：将图片上传至 Supabase Storage 并发布卡包到云端数据库 ---
+        async function uploadToBucket(file, label) {
+            const fileExt = file.name.split('.').pop();
+            const fileName = `${Date.now()}_${Math.random().toString(36).substring(2, 9)}.${fileExt}`;
+            const { error: uploadError } = await dbClient.storage.from('card-images').upload(fileName, file);
+            if (uploadError) throw new Error(`${label} 上传失败: ` + uploadError.message);
+            const { data: { publicUrl } } = dbClient.storage.from('card-images').getPublicUrl(fileName);
+            return publicUrl;
+        }
         async function publishSetToCloud() {
             const cost = 30;
             const currentCoins = getCoins();
@@ -678,22 +1144,13 @@
                     let imageUrl = slot.image;
 
                     if (slot.file) {
-                        const fileExt = slot.file.name.split('.').pop();
-                        const fileName = `${Date.now()}_${Math.random().toString(36).substring(2, 9)}.${fileExt}`;
-                        
-                        // 调用 Supabase Storage 上传
-                        const { data: uploadData, error: uploadError } = await dbClient.storage
-                            .from('card-images')
-                            .upload(fileName, slot.file);
+                        imageUrl = await uploadToBucket(slot.file, `图片 ${i + 1}`);
+                    }
 
-                        if (uploadError) throw new Error(`图片 ${i+1} 上传失败: ` + uploadError.message);
-
-                        // 获取公开访问 URL
-                        const { data: { publicUrl } } = dbClient.storage
-                            .from('card-images')
-                            .getPublicUrl(fileName);
-                        
-                        imageUrl = publicUrl;
+                    const fx = { type: slot.fx.type, p: slot.fx.p, tex: {} };
+                    for (const k of Object.keys(slot.fx.tex || {})) {
+                        const f = slot.fxFiles && slot.fxFiles[k];
+                        if (f) fx.tex[k] = await uploadToBucket(f, `槽位 ${i + 1} 的 ${k} 贴图`);
                     }
 
                     processedCards.push({
@@ -701,7 +1158,8 @@
                         name: slot.name,
                         rarity: slot.rarity,
                         image: imageUrl,
-                        desc: slot.desc
+                        desc: slot.desc,
+                        fx
                     });
                 }
 
@@ -768,7 +1226,7 @@
                 const item = document.createElement('div');
                 item.className = `pack-item ${selectedPack.id === pack.id ? 'selected' : ''}`;
                 item.innerHTML = `
-                    <div style="font-weight: bold; font-size: 13px; color: #ffd700;">${pack.title}</div>
+                    <div style="font-weight: bold; font-size: 13px; color: #ffd700;">${esc(pack.title)}</div>
                     <div style="font-size: 11px; color: #a0a0ab; margin-top: 2px;">包含卡片: ${pack.cards.length}张</div>
                 `;
                 item.onclick = () => selectPack(pack);
@@ -790,6 +1248,31 @@
         function updateSelectedPackUI() {
             document.getElementById('selectedPackTitle').textContent = selectedPack.title;
             document.getElementById('selectedPackDesc').textContent = selectedPack.description || '定向抽取该卡包内的专属卡片';
+            renderPackContents();
+        }
+
+        const RARITY_RATE = { SSR: 5, SR: 25, N: 70 };
+
+        // 稀有度权重在卡包实际存在的稀有度中归一化，再在同稀有度卡片间平分
+        function computeRates(pack) {
+            const by = {};
+            pack.cards.forEach(c => { (by[c.rarity] = by[c.rarity] || []).push(c); });
+            const present = ['SSR', 'SR', 'N'].filter(r => by[r]);
+            const total = present.reduce((s, r) => s + RARITY_RATE[r], 0);
+            return { by, present, total };
+        }
+
+        function renderPackContents() {
+            const box = document.getElementById('packContents');
+            const { by, present, total } = computeRates(selectedPack);
+            if (!present.length) { box.innerHTML = '<h4>卡包内容</h4><p style="font-size:12px;color:#666;">该卡包没有卡片</p>'; return; }
+            const summary = present.map(r => `<span class="r-${r}">${r}：${(RARITY_RATE[r] / total * 100).toFixed(1)}%（${by[r].length}张）</span>`).join('');
+            const items = present.flatMap(r => by[r].map(c => `
+                <div class="pc-item">
+                    <img src="${esc(c.image)}" alt="">
+                    <div class="pc-info"><b>${esc(c.name)}</b><span class="r-${r}">${r}</span> · <span>${(RARITY_RATE[r] / total / by[r].length * 100).toFixed(2)}%</span></div>
+                </div>`)).join('');
+            box.innerHTML = `<h4>卡包内容与出率</h4><div class="rate-summary">${summary}</div><div class="pc-list">${items}</div>`;
         }
 
         let pendingDrawCount = 1;
@@ -817,17 +1300,18 @@
             
             let inv = getInventory();
             let drawnCards = [];
-            let pool = selectedPack.cards; // 严格只在当前选中的卡包内部卡片池中抽取！
+            const { by, present, total } = computeRates(selectedPack);
+            if (!present.length) return;
 
             for (let i = 0; i < pendingDrawCount; i++) {
-                const rand = Math.random() * 100;
-                let targetRarity = 'N';
-                if (rand < 5) targetRarity = 'SSR';
-                else if (rand < 30) targetRarity = 'SR';
+                let rand = Math.random() * total;
+                let targetRarity = present[present.length - 1];
+                for (const r of present) {
+                    if (rand < RARITY_RATE[r]) { targetRarity = r; break; }
+                    rand -= RARITY_RATE[r];
+                }
 
-                let filtered = pool.filter(c => c.rarity === targetRarity);
-                if (filtered.length === 0) filtered = pool; // 兜底
-
+                const filtered = by[targetRarity];
                 const drawn = filtered[Math.floor(Math.random() * filtered.length)];
                 drawnCards.push(drawn);
 
@@ -845,23 +1329,15 @@
                 cardHtml.innerHTML = `
                     <div class="card ${drawn.rarity.toLowerCase()}">
                         <div class="card-content">
-                            <div class="card-header"><span>${drawn.rarity}</span><span>#${drawn.id.toString().slice(-4)}</span></div>
-                            <div class="card-image-box"><img src="${drawn.image}" alt=""></div>
-                            <div class="card-footer"><h3>${drawn.name}</h3><p>${drawn.desc}</p></div>
+                            <div class="card-header"><span>${esc(drawn.rarity)}</span><span>#${esc(drawn.id.toString().slice(-4))}</span></div>
+                            <div class="card-image-box"><img src="${esc(drawn.image)}" alt=""><canvas class="card-shine"></canvas></div>
+                            <div class="card-footer"><h3>${esc(drawn.name)}</h3><p>${esc(drawn.desc)}</p></div>
                         </div>
-                        <div class="card-shine"></div>
                     </div>
                 `;
                 resultBox.appendChild(cardHtml);
+                bindCard3D(cardHtml, drawn);
             });
-
-            setTimeout(() => {
-                document.querySelectorAll('.gacha-card-item').forEach(item => {
-                    const cardEl = item.querySelector('.card');
-                    const shineEl = item.querySelector('.card-shine');
-                    bindCard3D(item, cardEl, shineEl);
-                });
-            }, 300 + pendingDrawCount * 150);
         }
 
         // --- 3. 集卡册与分解逻辑 ---
@@ -892,11 +1368,10 @@
                     <div class="card-container col-card" style="width: 200px; height: 290px;">
                         <div class="card ${c.rarity.toLowerCase()}" style="width: 200px; height: 290px;">
                             <div class="card-content" style="padding: 10px;">
-                                <div class="card-header" style="font-size: 12px;"><span>${c.rarity}</span><span>#${c.id.toString().slice(-4)}</span></div>
-                                <div class="card-image-box" style="height: 130px;"><img src="${c.image}" alt=""></div>
-                                <div class="card-footer"><h3 style="font-size: 13px;">${c.name}</h3><p style="font-size: 10px;">${c.desc}</p></div>
+                                <div class="card-header" style="font-size: 12px;"><span>${esc(c.rarity)}</span><span>#${esc(c.id.toString().slice(-4))}</span></div>
+                                <div class="card-image-box" style="height: 130px;"><img src="${esc(c.image)}" alt=""><canvas class="card-shine"></canvas></div>
+                                <div class="card-footer"><h3 style="font-size: 13px;">${esc(c.name)}</h3><p style="font-size: 10px;">${esc(c.desc)}</p></div>
                             </div>
-                            <div class="card-shine"></div>
                         </div>
                     </div>
                     <div class="card-meta">
@@ -905,9 +1380,11 @@
                     </div>
                 `;
                 grid.appendChild(wrapper);
-                bindCard3D(wrapper.querySelector('.col-card'), wrapper.querySelector('.card'), wrapper.querySelector('.card-shine'));
+                bindCard3D(wrapper.querySelector('.col-card'), c);
             });
         }
+
+        updateSelectedPackUI();
 
         function recycleCard(cardId, refundCoins) {
             let inv = getInventory();
