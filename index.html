@@ -114,19 +114,26 @@
         .card {
             width: 220px;
             height: 320px;
-            background: #1e1e24;
             border-radius: 16px;
             position: relative;
             transform-style: preserve-3d;
-            transition: box-shadow 0.3s ease;
             -webkit-font-smoothing: antialiased;
-            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
-            border: 2px solid rgba(255, 215, 0, 0.4);
         }
 
-        .card.n { border-color: rgba(160, 160, 171, 0.6); }
-        .card.sr { border-color: rgba(64, 156, 255, 0.8); }
-        .card.ssr { border-color: rgba(255, 215, 0, 1); box-shadow: 0 0 20px rgba(255, 215, 0, 0.4); }
+        .card-face {
+            position: absolute;
+            inset: 0;
+            background: #1e1e24;
+            border-radius: 16px;
+            transition: box-shadow 0.3s ease;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+            border: 2px solid rgba(255, 215, 0, 0.4);
+            container-type: inline-size;
+        }
+
+        .card.n .card-face { border-color: rgba(160, 160, 171, 0.6); }
+        .card.sr .card-face { border-color: rgba(64, 156, 255, 0.8); }
+        .card.ssr .card-face { border-color: rgba(255, 215, 0, 1); box-shadow: 0 0 20px rgba(255, 215, 0, 0.4); }
 
         .card-content {
             position: absolute;
@@ -138,7 +145,7 @@
             pointer-events: none;
         }
 
-        .card { container-type: inline-size; }
+        .card-edge { position: absolute; inset: 0; border-radius: 16px; pointer-events: none; }
         .card-container { cursor: zoom-in; }
         .art-img, .frame-img {
             position: absolute;
@@ -195,6 +202,14 @@
             pointer-events: none;
             mix-blend-mode: screen;
         }
+        @supports (mix-blend-mode: plus-lighter) {
+            .card-shine { mix-blend-mode: plus-lighter; }
+        }
+        .fx-layer { border: 1px solid #3f3f4e; border-radius: 8px; padding: 8px; min-width: 0; }
+        .fx-layer-head { display: flex; justify-content: space-between; align-items: center; font-size: 11px; color: #ffd700; }
+        .finish-panel { background: #20202a; border: 1px solid #3a3a4c; border-radius: 12px; padding: 16px; display: flex; flex-direction: column; gap: 12px; }
+        .finish-panel .template-selector { flex-wrap: wrap; }
+        #finishList { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 440px), 1fr)); gap: 14px; }
 
         /* 1. 套组工坊样式 */
         .workshop-panel {
@@ -481,6 +496,13 @@
                     </div>
                 </div>
 
+                <div class="finish-panel">
+                    <h3 style="color: #ffd700; font-size: 15px;">✨ 套组特效变体与出率</h3>
+                    <p style="font-size: 12px; color: #a0a0ab;">每次抽到卡片后，再按下面的权重随机决定它带哪种加工特效（与稀有度无关，N 卡也可能是镖射）。变体特效会叠加在卡片自身的特效之上。</p>
+                    <div class="template-selector" id="finishTemplates"></div>
+                    <div id="finishList"></div>
+                </div>
+
                 <!-- 动态槽位填空区 -->
                 <div class="slots-grid" id="slotsGrid"></div>
 
@@ -552,12 +574,13 @@
                 id: 1, name: '全息彩虹 Holo',
                 params: [
                     { label: '强度', min: 0, max: 1.5, step: 0.01, def: 0.8 },
-                    { label: '色带密度', min: 0.5, max: 8, step: 0.1, def: 3 },
+                    { label: '色带密度（越大间隔越小）', min: 0.5, max: 8, step: 0.1, def: 3 },
                     { label: '色相偏移', min: 0, max: 1, step: 0.01, def: 0 },
                     { label: '饱和度', min: 0, max: 1, step: 0.01, def: 0.7 },
                     { label: '色带锐度', min: 0.3, max: 8, step: 0.1, def: 1.5 },
                     { label: '光斑范围', min: 0.1, max: 1.5, step: 0.01, def: 0.6 },
-                    { label: '光向跟随光标', min: 0, max: 1, step: 0.01, def: 0.85 }
+                    { label: '角度', min: 0, max: 180, step: 1, def: 35 },
+                    { label: '移动速度', min: 0, max: 4, step: 0.05, def: 1.2 }
                 ],
                 tex: [{ k: 'mask', label: '蒙版贴图（白=显示特效，可选）' }]
             },
@@ -608,8 +631,8 @@
                     { label: '角度', min: 0, max: 180, step: 1, def: 35 },
                     { label: '色相', min: 0, max: 1, step: 0.01, def: 0.12 },
                     { label: '边缘锐度', min: 0.5, max: 4, step: 0.05, def: 1.5 },
-                    { label: '副光带', min: 0, max: 1, step: 0.01, def: 0.5 },
-                    { label: '光向跟随光标', min: 0, max: 1, step: 0.01, def: 0.85 }
+                    { label: '光带间隔', min: 0.15, max: 3, step: 0.01, def: 1.2 },
+                    { label: '移动速度', min: 0, max: 4, step: 0.05, def: 1.5 }
                 ],
                 tex: [{ k: 'mask', label: '蒙版贴图（白=显示特效，可选）' }]
             },
@@ -621,7 +644,8 @@
                     { label: '视差', min: 0, max: 2, step: 0.01, def: 0.6 },
                     { label: '色相偏移', min: 0, max: 1, step: 0.01, def: 0 },
                     { label: '对比度', min: 0.5, max: 4, step: 0.05, def: 1.6 },
-                    { label: '饱和度', min: 0, max: 1, step: 0.01, def: 0.8 }
+                    { label: '饱和度', min: 0, max: 1, step: 0.01, def: 0.8 },
+                    { label: '内置纹样（无图案贴图时）', type: 'select', options: ['菱格', '斜纹', '圆点', '六边形', '鱼鳞', '波浪', '十字星', '同心圆', '雾纹'], def: 0 }
                 ],
                 tex: [
                     { k: 'pattern', label: '图案贴图（平铺，可选，缺省为菱格）' },
@@ -630,10 +654,31 @@
             }
         };
         const TEX_UNIT = { mask: 1, normal: 2, pattern: 3 };
-        const DEFAULT_FX_BY_RARITY = { N: 'sweep', SR: 'holo', SSR: 'foil' };
+        const MAX_LAYERS = 3;
+        const SUPPLY_DEFAULT = { N: 100, SR: 50, SSR: 10 };
 
-        const newFx = type => ({ type, p: FX[type].params.map(x => x.def), tex: {} });
-        const getFx = card => (card.fx && FX[card.fx.type]) ? card.fx : newFx(DEFAULT_FX_BY_RARITY[card.rarity] || 'none');
+        // 特效层：type/p/tex 会发布，files 仅是本地待上传的文件
+        const newFx = type => ({ type, p: FX[type].params.map(x => x.def), tex: {}, files: {} });
+        const normLayer = f => ({ ...newFx(f.type), ...f, files: f.files || {} });
+        const getFxs = card => (Array.isArray(card.fxs) ? card.fxs : (card.fx ? [card.fx] : [])).filter(f => f && FX[f.type]);
+
+        const FINISH_TEMPLATES = {
+            none: { name: '无变体', list: [{ name: '普通', rate: 100, fxs: [] }] },
+            standard: { name: '标准', list: [
+                { name: '普通', rate: 86, fxs: [] },
+                { name: '镖射', rate: 12, fxs: ['pattern'] },
+                { name: '彩虹闪耀', rate: 2, fxs: ['holo', 'glitter'] }
+            ] },
+            rich: { name: '丰富', list: [
+                { name: '普通', rate: 68, fxs: [] },
+                { name: '扫光', rate: 18, fxs: ['sweep'] },
+                { name: '镖射', rate: 10, fxs: ['pattern', 'sweep'] },
+                { name: '全息闪粉', rate: 3, fxs: ['holo', 'glitter'] },
+                { name: '星河', rate: 1, fxs: ['galaxy', 'foil'] }
+            ] }
+        };
+        const cloneFinishes = key => FINISH_TEMPLATES[key].list.map((f, i) => ({ id: 'f' + i, name: f.name, rate: f.rate, fxs: f.fxs.map(t => newFx(t)) }));
+        const getPackFinishes = pack => (pack.finishes && pack.finishes.length) ? pack.finishes : [{ id: 'f0', name: '普通', rate: 100, fxs: [] }];
 
         const FONTS = [
             { k: 'sans', name: '默认', css: 'system-ui, "Microsoft YaHei", sans-serif' },
@@ -657,7 +702,7 @@
         const getGloss = c => ({ s: 0.35, r: 0.5, ...(c.gloss || {}) });
         const getFrame = c => {
             const f = c.frame || {};
-            return { color: FRAME_COLOR[c.rarity] || '#2b2b36', opacity: 1, height: 34, panel: true, image: '', ...f, fx: (f.fx && FX[f.fx.type]) ? f.fx : newFx('none') };
+            return { color: FRAME_COLOR[c.rarity] || '#2b2b36', opacity: 1, height: 34, panel: true, image: '', ...f, fxs: getFxs(f) };
         };
         const getText = (c, k) => ({ ...TEXT_DEFAULTS[k], ...((c.text && c.text[k]) || {}) });
 
@@ -691,6 +736,30 @@
             if (uHas.x < 0.5) return 0.5;
             return dot(texture2D(uBase, cover(uv,uAsp.x)).rgb, vec3(0.299,0.587,0.114));
         }
+        float hexd(vec2 p){ p = abs(p); return max(dot(p, vec2(0.5,0.8660254)), p.x); }
+        vec2 hexLocal(vec2 uv){
+            vec2 s = vec2(1.7320508,1.0);
+            vec4 hC = floor(vec4(uv, uv-vec2(1.0,0.5))/s.xyxy)+0.5;
+            vec4 h = vec4(uv-hC.xy*s, uv-(hC.zw+0.5)*s);
+            return dot(h.xy,h.xy) < dot(h.zw,h.zw) ? h.xy : h.zw;
+        }
+        float patt(vec2 pu, float t){
+            if (t < 0.5) return abs(sin((pu.x+pu.y)*18.0))*abs(sin((pu.x-pu.y)*18.0));
+            if (t < 1.5) return 0.5+0.5*sin((pu.x+pu.y)*40.0);
+            if (t < 2.5) { vec2 f = fract(pu*12.0)-0.5; return 1.0-smoothstep(0.28,0.38,length(f)); }
+            if (t < 3.5) return smoothstep(0.3, 0.5, hexd(hexLocal(pu*6.0)));
+            if (t < 4.5) {
+                vec2 g = vec2(pu.x*8.0+0.5*mod(floor(pu.y*8.0),2.0), pu.y*8.0);
+                return 0.5+0.5*sin(length(fract(g)-vec2(0.5,0.0))*28.0);
+            }
+            if (t < 5.5) return 0.5+0.5*sin(pu.y*30.0+sin(pu.x*10.0)*2.0);
+            if (t < 6.5) {
+                vec2 f = fract(pu*8.0)-0.5;
+                return max((1.0-smoothstep(0.0,0.06,abs(f.x)))*(1.0-smoothstep(0.0,0.4,abs(f.y))), (1.0-smoothstep(0.0,0.06,abs(f.y)))*(1.0-smoothstep(0.0,0.4,abs(f.x))));
+            }
+            if (t < 7.5) return 0.5+0.5*sin(length(pu-0.5)*60.0);
+            return fbm(pu*8.0);
+        }
 
         void main(){
             vec2 uv = vUv; vec2 m = uMouse; vec2 d = m-0.5;
@@ -702,9 +771,8 @@
             vec3 col = vec3(0.0); float a = 0.0;
 
             if (abs(uEffect-1.0) < 0.5) {
-                vec2 md = length(d) > 0.001 ? normalize(d) : vec2(0.8,0.6);
-                vec2 hd = normalize(mix(vec2(0.8,0.6), md, uP[6]*smoothstep(0.0,0.1,length(d))) + 1e-4);
-                float t = dot((uv-0.5)*asp, hd)*uP[1] + dot(d, hd)*uP[1]*1.2 + uP[2];
+                float ha = radians(uP[6]); vec2 hd = vec2(cos(ha), sin(ha));
+                float t = (dot((uv-0.5)*asp, hd) - dot(d, hd)*uP[7])*uP[1] + uP[2];
                 float band = pow(0.5+0.5*sin(t*12.566+1.0), uP[4]);
                 col = hsv(fract(t), uP[3], 1.0);
                 float glow = smoothstep(uP[5], 0.0, distance(p, m*asp));
@@ -762,22 +830,21 @@
                 float diff = pow(max(dot(n,L),0.0), 2.0);
                 a = clamp(spec*1.5 + uP[2]*0.4*diff*(0.3+lum), 0.0, 1.0)*uP[0]*mask;
             } else if (abs(uEffect-5.0) < 0.5) {
-                float ang = radians(uP[2]); vec2 bd = vec2(cos(ang), sin(ang));
-                vec2 md = length(d) > 0.001 ? normalize(d) : bd;
-                vec2 dir = normalize(mix(bd, md, uP[6]*smoothstep(0.0,0.1,length(d))) + 1e-4);
-                float x = dot((uv-0.5)*asp, dir) - dot(d, dir)*1.5;
+                float ang = radians(uP[2]); vec2 dir = vec2(cos(ang), sin(ang));
+                float x = dot((uv-0.5)*asp, dir) - dot(d, dir)*uP[6];
+                float sp = uP[5];
+                x -= sp*floor(x/sp+0.5);
                 float w = uP[1];
                 float b1 = exp(-pow(abs(x)/w, uP[4]*2.0));
-                float b2 = exp(-pow(abs(x+w*2.6)/(w*0.5), uP[4]*2.0))*uP[5];
                 col = hsv(uP[3], 0.45, 1.0);
-                a = clamp((b1+b2*0.6)*(0.6+0.8*lum), 0.0, 1.0)*uP[0]*mask;
+                a = clamp(b1*(0.6+0.8*lum), 0.0, 1.0)*uP[0]*mask;
             } else if (abs(uEffect-6.0) < 0.5) {
                 vec2 pu = (uv-0.5)*asp*uP[1] + 0.5 + d*uP[2]*0.5;
                 float v;
                 if (uHas.w > 0.5) {
                     v = dot(texture2D(uPattern, fract(pu)).rgb, vec3(0.3333));
                 } else {
-                    v = abs(sin((pu.x+pu.y)*18.0))*abs(sin((pu.x-pu.y)*18.0));
+                    v = patt(pu, uP[6]);
                 }
                 v = clamp((v-0.5)*uP[4]+0.5, 0.0, 1.0);
                 col = hsv(fract(uP[3] + v*0.5 + dot(d, vec2(1.2,0.8))), uP[5], 1.0);
@@ -855,18 +922,19 @@
         }
 
         function layerSpec(card, layer) {
-            if (layer === 'art') return { image: card.image, fx: getFx(card), mode: 0 };
+            if (layer === 'art') return { image: card.image, fxs: getFxs(card), mode: 0 };
             const f = getFrame(card);
-            return { image: f.image, fx: f.fx, mode: 1, y0: 1 - f.height / 100, panel: f.panel ? 1 : 0, img: f.image ? 1 : 0 };
+            return { image: f.image, fxs: f.fxs, mode: 1, y0: 1 - f.height / 100, panel: f.panel ? 1 : 0, img: f.image ? 1 : 0 };
         }
 
         // layer: 'art' 铺满整张卡；'frame' 仅在底板/边框图不透明区域生效
         function renderFx(cv, card, layer, mx, my, fade) {
             const ctx = cv.getContext('2d');
             const spec = layerSpec(card, layer);
-            const fx = spec.fx, def = FX[fx.type], gloss = getGloss(card);
+            const gloss = getGloss(card);
+            const fxs = spec.fxs.filter(f => FX[f.type].id);
             const noFrame = layer === 'frame' && !spec.panel && !spec.img;
-            if (!fxGL || noFrame || ((!def || !def.id) && gloss.s <= 0)) { ctx.clearRect(0, 0, cv.width, cv.height); return; }
+            if (!fxGL || noFrame || (!fxs.length && gloss.s <= 0)) { ctx.clearRect(0, 0, cv.width, cv.height); return; }
             const { gl, canvas, u, blank } = fxGL;
             const dpr = Math.min(window.devicePixelRatio || 1, 2);
             const w = Math.max(1, Math.round(cv.clientWidth * dpr)), h = Math.max(1, Math.round(cv.clientHeight * dpr));
@@ -875,33 +943,38 @@
             gl.viewport(0, 0, w, h);
             gl.clearColor(0, 0, 0, 0); gl.clear(gl.COLOR_BUFFER_BIT);
 
-            const has = [0, 0, 0, 0], asp = [1, 1, 1, 1];
-            const bind = (unit, e, idx) => {
-                gl.activeTexture(gl.TEXTURE0 + unit);
-                gl.bindTexture(gl.TEXTURE_2D, e ? e.tex : blank);
-                if (e) { has[idx] = 1; asp[idx] = e.w / e.h; }
-            };
-            bind(0, getTex(spec.image), 0);
-            const used = def.tex.map(t => t.k);
-            ['mask', 'normal', 'pattern'].forEach(k => {
-                bind(TEX_UNIT[k], used.includes(k) ? getTex(fx.tex && fx.tex[k]) : null, TEX_UNIT[k]);
-            });
+            // 多个特效层用加法混合叠加到同一张画布；基础反光只在第一遍计入
+            gl.enable(gl.BLEND); gl.blendFunc(gl.ONE, gl.ONE);
+            (fxs.length ? fxs : [null]).forEach((fx, pass) => {
+                const def = FX[fx ? fx.type : 'none'];
+                const has = [0, 0, 0, 0], asp = [1, 1, 1, 1];
+                const bind = (unit, e, idx) => {
+                    gl.activeTexture(gl.TEXTURE0 + unit);
+                    gl.bindTexture(gl.TEXTURE_2D, e ? e.tex : blank);
+                    if (e) { has[idx] = 1; asp[idx] = e.w / e.h; }
+                };
+                bind(0, getTex(spec.image), 0);
+                const used = def.tex.map(t => t.k);
+                ['mask', 'normal', 'pattern'].forEach(k => {
+                    bind(TEX_UNIT[k], used.includes(k) ? getTex(fx.tex && fx.tex[k]) : null, TEX_UNIT[k]);
+                });
 
-            const p = new Float32Array(8);
-            def.params.forEach((pd, i) => { p[i] = (fx.p && fx.p[i] !== undefined) ? fx.p[i] : pd.def; });
-            gl.uniform2f(u.uRes, w, h);
-            gl.uniform2f(u.uMouse, mx, my);
-            gl.uniform1f(u.uTime, performance.now() / 1000);
-            gl.uniform1f(u.uFade, fade);
-            gl.uniform1f(u.uEffect, def.id);
-            gl.uniform1f(u.uBoxAsp, w / h);
-            gl.uniform1fv(u.uP, p);
-            gl.uniform4fv(u.uHas, has);
-            gl.uniform4fv(u.uAsp, asp);
-            gl.uniform2f(u.uGloss, gloss.s, gloss.r);
-            gl.uniform1f(u.uMode, spec.mode);
-            gl.uniform3f(u.uFM, spec.y0 || 0, spec.panel || 0, spec.img || 0);
-            gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+                const p = new Float32Array(8);
+                def.params.forEach((pd, i) => { p[i] = (fx && fx.p && fx.p[i] !== undefined) ? fx.p[i] : pd.def; });
+                gl.uniform2f(u.uRes, w, h);
+                gl.uniform2f(u.uMouse, mx, my);
+                gl.uniform1f(u.uTime, performance.now() / 1000);
+                gl.uniform1f(u.uFade, fade);
+                gl.uniform1f(u.uEffect, def.id);
+                gl.uniform1f(u.uBoxAsp, w / h);
+                gl.uniform1fv(u.uP, p);
+                gl.uniform4fv(u.uHas, has);
+                gl.uniform4fv(u.uAsp, asp);
+                gl.uniform2f(u.uGloss, pass === 0 ? gloss.s : 0, gloss.r);
+                gl.uniform1f(u.uMode, spec.mode);
+                gl.uniform3f(u.uFM, spec.y0 || 0, spec.panel || 0, spec.img || 0);
+                gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+            });
             ctx.clearRect(0, 0, w, h);
             ctx.drawImage(canvas, 0, 0, w, h);
         }
@@ -911,9 +984,10 @@
             id: 'official_default',
             title: '🌟 官方经典初始卡包',
             description: '系统自带的基础卡包，内含经典测试卡片',
+            finishes: cloneFinishes('standard'),
             cards: [
-                { id: 101, name: "星空幻境", rarity: "SSR", image: "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?q=80&w=400&auto=format&fit=crop", desc: "随鼠标旋转流转的全息反光卡面。" },
-                { id: 102, name: "霓虹街区", rarity: "SR", image: "https://images.unsplash.com/photo-1519681393784-d120267933ba?q=80&w=400&auto=format&fit=crop", desc: "赛博朋克风格的未来都市夜景。" },
+                { id: 101, name: "星空幻境", rarity: "SSR", image: "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?q=80&w=400&auto=format&fit=crop", desc: "随鼠标旋转流转的全息反光卡面。", fxs: [{ type: 'foil', tex: {} }] },
+                { id: 102, name: "霓虹街区", rarity: "SR", image: "https://images.unsplash.com/photo-1519681393784-d120267933ba?q=80&w=400&auto=format&fit=crop", desc: "赛博朋克风格的未来都市夜景。", fxs: [{ type: 'holo', tex: {} }] },
                 { id: 103, name: "初级史莱姆", rarity: "N", image: "https://images.unsplash.com/photo-1534447677768-be436bb09401?q=80&w=400&auto=format&fit=crop", desc: "到处可见的软萌生物。" }
             ]
         };
@@ -937,6 +1011,7 @@
         let currentTemplateKey = 'mini';
         let currentDraftSlots = JSON.parse(JSON.stringify(templates.mini));
         currentDraftSlots.forEach(ensureSlotFx);
+        let currentFinishes = cloneFinishes('standard');
         let cloudPacks = [defaultPack];
         let selectedPack = defaultPack;
 
@@ -992,16 +1067,19 @@
             document.getElementById('tplMini').className = `template-card ${key === 'mini' ? 'selected' : ''}`;
             document.getElementById('tplStandard').className = `template-card ${key === 'standard' ? 'selected' : ''}`;
             renderWorkshopSlots();
+            renderFinishPanel();
         }
 
         function ensureSlotFx(slot) {
-            if (!slot.fx || !FX[slot.fx.type]) slot.fx = newFx(DEFAULT_FX_BY_RARITY[slot.rarity] || 'none');
-            slot.fxFiles = slot.fxFiles || {};
+            slot.fxs = getFxs(slot).map(normLayer);
+            delete slot.fx;
             slot.gloss = getGloss(slot);
             slot.frame = getFrame(slot);
+            slot.frame.fxs = slot.frame.fxs.map(normLayer);
+            delete slot.frame.fx;
             slot.frame.file = null;
-            slot.frame.fxFiles = slot.frame.fxFiles || {};
             slot.text = { tag: getText(slot, 'tag'), name: getText(slot, 'name'), desc: getText(slot, 'desc') };
+            if (slot.supply === undefined) slot.supply = SUPPLY_DEFAULT[slot.rarity] || 50;
         }
 
         const slotBindings = [];
@@ -1013,12 +1091,21 @@
             c.className = 'card-container';
             c.style.width = width + 'px';
             c.style.height = Math.round(width * 320 / 220) + 'px';
+            // 边缘厚度：在卡面后方堆叠若干层，倾斜时可见
+            const th = Math.max(3, width * 0.02), N = 8;
+            let edges = '';
+            for (let i = 1; i <= N; i++) {
+                edges += `<div class="card-edge" style="transform: translateZ(${(-th * i / N).toFixed(2)}px); background: hsl(240, 8%, ${78 - i * 3}%);"></div>`;
+            }
             c.innerHTML = `
                 <div class="card" style="width: 100%; height: 100%;">
+                    ${edges}
+                    <div class="card-face">
                     <div class="card-content">
                         <img class="art-img" alt=""><canvas class="card-shine art-fx"></canvas>
                         <div class="frame-panel"></div><img class="frame-img" alt=""><canvas class="card-shine frame-fx"></canvas>
                         <div class="tx" data-t="tag"></div><div class="tx" data-t="name"></div><div class="tx" data-t="desc"></div>
+                    </div>
                     </div>
                 </div>`;
             updateCardView(c, card);
@@ -1047,7 +1134,7 @@
             }
 
             const idTxt = card.id !== undefined ? String(card.id).slice(-4) : 'SLOT';
-            const content = { tag: `${card.rarity}  #${idTxt}`, name: card.name || '未命名', desc: card.desc || '' };
+            const content = { tag: `${card.rarity}  #${idTxt}${card.finishName ? ' · ' + card.finishName : ''}`, name: card.name || '未命名', desc: card.desc || '' };
             c.querySelectorAll('.tx').forEach(n => {
                 const k = n.dataset.t, t = getText(card, k);
                 Object.assign(n.style, {
@@ -1108,6 +1195,10 @@
                             <div class="input-group">
                                 <label>卡片描述</label>
                                 <textarea oninput="updateSlotData(${index}, 'desc', this.value)">${esc(slot.desc)}</textarea>
+                            </div>
+                            <div class="input-group">
+                                <label>发行数量（枚）</label>
+                                <input type="number" min="1" max="9999" value="${slot.supply}" onchange="updateSlotSupply(${index}, this)">
                             </div>
                         </div>
                     </div>
@@ -1175,7 +1266,7 @@
             const change = ms => refreshSlot(index, ms);
             panel.innerHTML = '';
 
-            buildFxEditor(mkSection(panel, '✨ 卡面特效', true), slot, change);
+            buildFxStack(mkSection(panel, '✨ 卡面特效（可叠加，与稀有度无关）', true), slot, change);
 
             const gb = mkSection(panel, '💧 表面反光');
             mkRange(gb, '反光强度', slot.gloss, 's', 0, 1, 0.01, () => change(1500));
@@ -1208,7 +1299,7 @@
             const subBody = document.createElement('div');
             subBody.className = 'fx-sec-body';
             sub.appendChild(subBody);
-            buildFxEditor(subBody, fr, change);
+            buildFxStack(subBody, fr, change);
 
             const tb = mkSection(panel, '🔤 文字样式');
             const tbody = document.createElement('div');
@@ -1230,9 +1321,9 @@
             renderText('name');
         }
 
-        // owner: 含 fx / fxFiles 的对象（槽位或边框）；pulse(ms) 刷新预览
-        function buildFxEditor(panel, owner, pulse) {
-            const fx = owner.fx, def = FX[fx.type];
+        // layer: 特效层对象（type/p/tex/files）；pulse(ms) 刷新预览
+        function buildFxEditor(panel, layer, pulse) {
+            const fx = layer, def = FX[fx.type];
             panel.innerHTML = '';
 
             const selGroup = document.createElement('div');
@@ -1245,9 +1336,8 @@
             });
             sel.value = fx.type;
             sel.onchange = () => {
-                owner.fx = newFx(sel.value);
-                owner.fxFiles = {};
-                buildFxEditor(panel, owner, pulse);
+                Object.assign(layer, newFx(sel.value));
+                buildFxEditor(panel, layer, pulse);
                 pulse(2000);
             };
             selGroup.appendChild(sel);
@@ -1270,7 +1360,7 @@
                     const reader = new FileReader();
                     reader.onload = ev => {
                         fx.tex[t.k] = ev.target.result;
-                        owner.fxFiles[t.k] = file;
+                        layer.files[t.k] = file;
                         status.textContent = ' ✔ 已选择';
                         pulse(2000);
                     };
@@ -1281,9 +1371,13 @@
             });
 
             def.params.forEach((pd, i) => {
+                const cur = fx.p[i] !== undefined ? fx.p[i] : pd.def;
+                if (pd.type === 'select') {
+                    mkSelect(panel, pd.label, pd.options.map((n, j) => [j, n]), cur, v => { fx.p[i] = parseInt(v, 10); pulse(1500); });
+                    return;
+                }
                 const row = document.createElement('div');
                 row.className = 'fx-row';
-                const cur = fx.p[i] !== undefined ? fx.p[i] : pd.def;
                 row.innerHTML = `<label><span>${esc(pd.label)}</span><span class="fx-val">${cur}</span></label>`;
                 const r = document.createElement('input');
                 r.type = 'range'; r.min = pd.min; r.max = pd.max; r.step = pd.step; r.value = cur;
@@ -1295,6 +1389,107 @@
                 row.appendChild(r);
                 panel.appendChild(row);
             });
+        }
+
+        // 可叠加的特效层列表：owner.fxs
+        function buildFxStack(panel, owner, onChange) {
+            panel.innerHTML = '';
+            if (!owner.fxs.length) {
+                const hint = document.createElement('div');
+                hint.style.cssText = 'font-size:11px;color:#666;';
+                hint.textContent = '暂无特效层（仅显示基础反光）';
+                panel.appendChild(hint);
+            }
+            owner.fxs.forEach((layer, i) => {
+                const box = document.createElement('div');
+                box.className = 'fx-layer';
+                const head = document.createElement('div');
+                head.className = 'fx-layer-head';
+                head.innerHTML = `<span>特效层 ${i + 1}</span>`;
+                const del = document.createElement('button');
+                del.className = 'mini-btn'; del.textContent = '删除';
+                del.onclick = () => { owner.fxs.splice(i, 1); buildFxStack(panel, owner, onChange); onChange(1500); };
+                head.appendChild(del);
+                box.appendChild(head);
+                const body = document.createElement('div');
+                body.className = 'fx-sec-body';
+                box.appendChild(body);
+                buildFxEditor(body, layer, onChange);
+                panel.appendChild(box);
+            });
+            if (owner.fxs.length < MAX_LAYERS) {
+                const add = document.createElement('button');
+                add.className = 'mini-btn'; add.textContent = '＋ 添加特效层';
+                add.onclick = () => { owner.fxs.push(newFx('holo')); buildFxStack(panel, owner, onChange); onChange(2000); };
+                panel.appendChild(add);
+            }
+        }
+
+        let finSeq = 0;
+        const composeFinishCard = (base, fin) => ({ ...base, fxs: [...getFxs(base), ...fin.fxs], finishName: fin.name });
+
+        function renderFinishPanel() {
+            const tplBox = document.getElementById('finishTemplates');
+            tplBox.innerHTML = '<span style="font-size: 13px; font-weight: bold;">出率模板：</span>';
+            Object.keys(FINISH_TEMPLATES).forEach(k => {
+                const d = document.createElement('div');
+                d.className = 'template-card';
+                d.innerHTML = `<strong>${esc(FINISH_TEMPLATES[k].name)}</strong> <span style="font-size:11px;color:#a0a0ab;">${FINISH_TEMPLATES[k].list.map(f => esc(f.name) + ' ' + f.rate + '%').join(' / ')}</span>`;
+                d.onclick = () => { currentFinishes = cloneFinishes(k); renderFinishPanel(); };
+                tplBox.appendChild(d);
+            });
+
+            const list = document.getElementById('finishList');
+            list.innerHTML = '';
+            const pcts = [];
+            const updatePcts = () => {
+                const total = currentFinishes.reduce((s, f) => s + f.rate, 0) || 1;
+                currentFinishes.forEach((f, i) => { pcts[i].textContent = `实际出率 ${(f.rate / total * 100).toFixed(1)}%`; });
+            };
+            currentFinishes.forEach((fin, i) => {
+                const box = document.createElement('div');
+                box.className = 'slot-card-box';
+                box.innerHTML = '<div class="slot-main"><div class="slot-preview-holder"></div><div class="slot-fields"></div></div>';
+                const preview = composeFinishCard(currentDraftSlots[0], fin);
+                const previewEl = buildCard(preview, 110, { zoom: false });
+                box.querySelector('.slot-preview-holder').appendChild(previewEl);
+                const change = ms => {
+                    Object.assign(preview, composeFinishCard(currentDraftSlots[0], fin));
+                    updateCardView(previewEl, preview);
+                    if (ms) previewEl.fxBinding.pulse(ms);
+                };
+                const fields = box.querySelector('.slot-fields');
+                const nameIn = document.createElement('input');
+                nameIn.type = 'text'; nameIn.value = fin.name;
+                nameIn.oninput = () => { fin.name = nameIn.value; change(0); };
+                mkInput(fields, '变体名称', nameIn);
+                mkRange(fields, '出现权重', fin, 'rate', 0, 100, 1, () => updatePcts());
+                const pct = document.createElement('div');
+                pct.className = 'fx-tex-status';
+                pcts[i] = pct;
+                fields.appendChild(pct);
+                if (currentFinishes.length > 1) {
+                    const del = document.createElement('button');
+                    del.className = 'mini-btn'; del.textContent = '删除此变体';
+                    del.onclick = () => { currentFinishes.splice(i, 1); renderFinishPanel(); };
+                    fields.appendChild(del);
+                }
+                const sec = mkSection(box, '✨ 变体特效层', false);
+                buildFxStack(sec, fin, change);
+                list.appendChild(box);
+            });
+            updatePcts();
+
+            const add = document.createElement('button');
+            add.className = 'mini-btn'; add.textContent = '＋ 添加特效变体';
+            add.onclick = () => { currentFinishes.push({ id: 'f' + Date.now() + (finSeq++), name: '新变体', rate: 5, fxs: [newFx('holo')] }); renderFinishPanel(); };
+            list.appendChild(add);
+        }
+
+        function updateSlotSupply(index, input) {
+            const v = Math.max(1, Math.min(9999, parseInt(input.value, 10) || 1));
+            currentDraftSlots[index].supply = v;
+            input.value = v;
         }
 
         function updateSlotData(index, field, value) {
@@ -1385,11 +1580,15 @@
             const { data: { publicUrl } } = dbClient.storage.from('card-images').getPublicUrl(fileName);
             return publicUrl;
         }
-        async function uploadFxTextures(fx, files, label) {
-            const out = { type: fx.type, p: fx.p, tex: {} };
-            for (const k of Object.keys(fx.tex || {})) {
-                const f = files && files[k];
-                if (f) out.tex[k] = await uploadToBucket(f, `${label} ${k} 贴图`);
+        async function uploadLayers(layers, label) {
+            const out = [];
+            for (const layer of layers) {
+                const o = { type: layer.type, p: layer.p, tex: {} };
+                for (const k of Object.keys(layer.tex || {})) {
+                    const f = layer.files && layer.files[k];
+                    if (f) o.tex[k] = await uploadToBucket(f, `${label} ${k} 贴图`);
+                }
+                out.push(o);
             }
             return out;
         }
@@ -1405,10 +1604,21 @@
                 return;
             }
 
+            if (currentFinishes.reduce((s, f) => s + f.rate, 0) <= 0) {
+                tip.style.color = '#e74c3c';
+                tip.textContent = '特效变体的出现权重不能全为 0。';
+                return;
+            }
+
             tip.style.color = '#ffd700';
             tip.textContent = '正在上传图片并同步到云端数据库，请稍候...';
 
             try {
+                // 套组级特效变体（无需改数据库结构，随每张卡一起存入 cards JSON）
+                const finishes = [];
+                for (const fin of currentFinishes) {
+                    finishes.push({ id: fin.id, name: fin.name, rate: fin.rate, fxs: await uploadLayers(fin.fxs, `变体 ${fin.name}`) });
+                }
                 // 1. 遍历槽位，将玩家上传的图片文件依次存入 Supabase Storage 存储桶
                 let processedCards = [];
                 for (let i = 0; i < currentDraftSlots.length; i++) {
@@ -1419,14 +1629,14 @@
                         imageUrl = await uploadToBucket(slot.file, `图片 ${i + 1}`);
                     }
 
-                    const fx = await uploadFxTextures(slot.fx, slot.fxFiles, `槽位 ${i + 1}`);
+                    const fxs = await uploadLayers(slot.fxs, `槽位 ${i + 1}`);
                     const fr = slot.frame;
                     let frameImage = fr.image;
                     if (fr.file) frameImage = await uploadToBucket(fr.file, `槽位 ${i + 1} 边框图`);
                     else if (frameImage && frameImage.startsWith('data:')) frameImage = '';
                     const frame = {
                         color: fr.color, opacity: fr.opacity, height: fr.height, panel: fr.panel, image: frameImage,
-                        fx: await uploadFxTextures(fr.fx, fr.fxFiles, `槽位 ${i + 1} 边框`)
+                        fxs: await uploadLayers(fr.fxs, `槽位 ${i + 1} 边框`)
                     };
 
                     processedCards.push({
@@ -1435,10 +1645,13 @@
                         rarity: slot.rarity,
                         image: imageUrl,
                         desc: slot.desc,
-                        fx,
+                        fxs,
                         gloss: slot.gloss,
                         frame,
-                        text: slot.text
+                        text: slot.text,
+                        supply: slot.supply,
+                        remaining: slot.supply,
+                        finishes
                     });
                 }
 
@@ -1469,6 +1682,7 @@
         }
 
         renderWorkshopSlots();
+        renderFinishPanel();
 
         // --- 2. 抽卡中心逻辑（从 Supabase 加载卡包并定向抽取） ---
         async function fetchCloudPacksAndRender() {
@@ -1486,6 +1700,7 @@
                             id: row.id,
                             title: row.title,
                             description: row.description,
+                            finishes: ((row.cards || []).find(c => c.finishes) || {}).finishes,
                             cards: row.cards
                         });
                     });
@@ -1532,26 +1747,45 @@
 
         const RARITY_RATE = { SSR: 5, SR: 25, N: 70 };
 
-        // 稀有度权重在卡包实际存在的稀有度中归一化，再在同稀有度卡片间平分
+        const isAvailable = c => c.supply == null || (c.remaining ?? c.supply) > 0;
+
+        // 稀有度权重在卡包内仍有库存的稀有度中归一化，再在同稀有度卡片间平分
         function computeRates(pack) {
             const by = {};
-            pack.cards.forEach(c => { (by[c.rarity] = by[c.rarity] || []).push(c); });
+            pack.cards.filter(isAvailable).forEach(c => { (by[c.rarity] = by[c.rarity] || []).push(c); });
             const present = ['SSR', 'SR', 'N'].filter(r => by[r]);
             const total = present.reduce((s, r) => s + RARITY_RATE[r], 0);
             return { by, present, total };
         }
 
+        function pickFinish(finishes) {
+            const total = finishes.reduce((s, f) => s + f.rate, 0);
+            if (total <= 0) return finishes[0];
+            let r = Math.random() * total;
+            for (const f of finishes) { if (r < f.rate) return f; r -= f.rate; }
+            return finishes[finishes.length - 1];
+        }
+
         function renderPackContents() {
             const box = document.getElementById('packContents');
             const { by, present, total } = computeRates(selectedPack);
-            if (!present.length) { box.innerHTML = '<h4>卡包内容</h4><p style="font-size:12px;color:#666;">该卡包没有卡片</p>'; return; }
-            const summary = present.map(r => `<span class="r-${r}">${r}：${(RARITY_RATE[r] / total * 100).toFixed(1)}%（${by[r].length}张）</span>`).join('');
-            const items = present.flatMap(r => by[r].map(c => `
-                <div class="pc-item">
+            if (!present.length) { box.innerHTML = '<h4>卡包内容</h4><p style="font-size:12px;color:#666;">该卡包已全部抽完或没有卡片</p>'; return; }
+            const summary = present.map(r => `<span class="r-${r}">${r}：${(RARITY_RATE[r] / total * 100).toFixed(1)}%（${by[r].length}种）</span>`).join('');
+            const finishes = getPackFinishes(selectedPack);
+            const ftotal = finishes.reduce((s, f) => s + f.rate, 0) || 1;
+            const finSummary = finishes.length > 1
+                ? `<div class="rate-summary"><span style="color:#a0a0ab;">特效变体：</span>${finishes.map(f => `<span>${esc(f.name)} ${(f.rate / ftotal * 100).toFixed(1)}%</span>`).join('')}</div>`
+                : '';
+            const items = selectedPack.cards.map(c => {
+                const ok = isAvailable(c);
+                const pct = ok ? (RARITY_RATE[c.rarity] / total / by[c.rarity].length * 100).toFixed(2) + '%' : '已售罄';
+                const stock = c.supply != null ? ` · 剩余 ${c.remaining ?? c.supply}/${c.supply}` : '';
+                return `<div class="pc-item" style="${ok ? '' : 'opacity:0.45;'}">
                     <img src="${esc(c.image)}" alt="">
-                    <div class="pc-info"><b>${esc(c.name)}</b><span class="r-${r}">${r}</span> · <span>${(RARITY_RATE[r] / total / by[r].length * 100).toFixed(2)}%</span></div>
-                </div>`)).join('');
-            box.innerHTML = `<h4>卡包内容与出率</h4><div class="rate-summary">${summary}</div><div class="pc-list">${items}</div>`;
+                    <div class="pc-info"><b>${esc(c.name)}</b><span class="r-${esc(c.rarity)}">${esc(c.rarity)}</span> · <span>${pct}${stock}</span></div>
+                </div>`;
+            }).join('');
+            box.innerHTML = `<h4>卡包内容与出率</h4><div class="rate-summary">${summary}</div>${finSummary}<div class="pc-list">${items}</div>`;
         }
 
         let pendingDrawCount = 1;
@@ -1559,6 +1793,11 @@
         function startGacha(count) {
             const cost = count === 1 ? 10 : 45;
             const currentCoins = getCoins();
+
+            if (!computeRates(selectedPack).present.length) {
+                alert('该卡包已全部抽完或没有卡片。');
+                return;
+            }
 
             if (currentCoins < cost) {
                 alert(`金币不足！抽卡需要 ${cost} 金币，你当前有 ${currentCoins} 金币。`);
@@ -1571,18 +1810,32 @@
             document.getElementById('summonTip').textContent = count === 1 ? "消耗 10 金币，感应单抽能量..." : "消耗 45 金币，感应五连星光...";
         }
 
-        function finishSummonAnimation() {
+        async function finishSummonAnimation() {
             document.getElementById('gachaOverlay').style.display = 'none';
 
             const resultBox = document.getElementById('gachaResult');
             resultBox.innerHTML = '';
-            
+
+            const pack = selectedPack;
+            const totalCost = pendingDrawCount === 1 ? 10 : 45;
+            const limited = pack.id !== defaultPack.id;
+            if (limited) {
+                // 抽卡前刷新云端库存，避免用过期的剩余数量
+                try {
+                    const { data, error } = await dbClient.from('card_packs').select('cards').eq('id', pack.id).single();
+                    if (error) throw error;
+                    pack.cards = data.cards;
+                } catch (err) { console.warn('刷新库存失败，使用本地缓存', err); }
+            }
+
+            const finishes = getPackFinishes(pack);
             let inv = getInventory();
-            let drawnCards = [];
-            const { by, present, total } = computeRates(selectedPack);
-            if (!present.length) return;
+            const drawnCards = [];
 
             for (let i = 0; i < pendingDrawCount; i++) {
+                const { by, present, total } = computeRates(pack);
+                if (!present.length) break;
+
                 let rand = Math.random() * total;
                 let targetRarity = present[present.length - 1];
                 for (const r of present) {
@@ -1592,14 +1845,35 @@
 
                 const filtered = by[targetRarity];
                 const drawn = filtered[Math.floor(Math.random() * filtered.length)];
-                drawnCards.push(drawn);
+                if (drawn.supply != null) drawn.remaining = (drawn.remaining ?? drawn.supply) - 1;
+
+                // 特效变体与稀有度独立抽取，并叠加在卡片自身特效之上
+                const fin = pickFinish(finishes);
+                const snap = { ...drawn };
+                delete snap.fx; delete snap.finishes; delete snap.remaining;
+                snap.fxs = [...getFxs(drawn), ...fin.fxs.map(({ type, p, tex }) => ({ type, p, tex }))];
+                snap.finishName = fin.fxs.length ? fin.name : '';
+                drawnCards.push(snap);
 
                 // 只有抽到的卡片才正式存入集卡册
-                if (inv[drawn.id]) { inv[drawn.id].count++; } 
-                else { inv[drawn.id] = { card: drawn, count: 1 }; }
+                const key = fin.fxs.length ? `${drawn.id}_${fin.id}` : `${drawn.id}`;
+                if (inv[key]) { inv[key].count++; }
+                else { inv[key] = { card: snap, count: 1 }; }
+            }
+
+            if (drawnCards.length < pendingDrawCount) {
+                const refund = totalCost - Math.round(totalCost * drawnCards.length / pendingDrawCount);
+                setCoins(getCoins() + refund);
+                alert(`卡包库存不足，只抽到 ${drawnCards.length} 张，已退还 ${refund} 金币。`);
             }
 
             localStorage.setItem('myInventory', JSON.stringify(inv));
+
+            if (limited && drawnCards.length) {
+                const { error } = await dbClient.from('card_packs').update({ cards: pack.cards }).eq('id', pack.id);
+                if (error) console.warn('库存回写失败', error);
+            }
+            updateSelectedPackUI();
 
             drawnCards.forEach((drawn, index) => {
                 const cardEl = buildCard(drawn, 190);
@@ -1636,9 +1910,10 @@
                 wrapper.innerHTML = `
                     <div class="card-meta">
                         <span class="card-count">x${item.count}</span>
-                        <button class="recycle-btn" onclick="recycleCard(${c.id}, ${recycleValue})">分解 (+${recycleValue}💰)</button>
+                        <button class="recycle-btn">分解 (+${recycleValue}💰)</button>
                     </div>
                 `;
+                wrapper.querySelector('.recycle-btn').onclick = () => recycleCard(key, recycleValue);
                 wrapper.prepend(buildCard(c, 200));
                 grid.appendChild(wrapper);
             });
