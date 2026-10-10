@@ -580,7 +580,7 @@
                     { label: '色带锐度', min: 0.3, max: 8, step: 0.1, def: 1.5 },
                     { label: '光斑范围', min: 0.1, max: 1.5, step: 0.01, def: 0.6 },
                     { label: '角度', min: 0, max: 180, step: 1, def: 35 },
-                    { label: '移动速度', min: 0, max: 4, step: 0.05, def: 1.2 }
+                    { label: '移动速度（负值=反方向）', min: -4, max: 4, step: 0.05, def: 1.2 }
                 ],
                 tex: [{ k: 'mask', label: '蒙版贴图（白=显示特效，可选）' }]
             },
@@ -632,7 +632,7 @@
                     { label: '色相', min: 0, max: 1, step: 0.01, def: 0.12 },
                     { label: '边缘锐度', min: 0.5, max: 4, step: 0.05, def: 1.5 },
                     { label: '光带间隔', min: 0.15, max: 3, step: 0.01, def: 1.2 },
-                    { label: '移动速度', min: 0, max: 4, step: 0.05, def: 1.5 }
+                    { label: '移动速度（负值=反方向）', min: -4, max: 4, step: 0.05, def: 1.5 }
                 ],
                 tex: [{ k: 'mask', label: '蒙版贴图（白=显示特效，可选）' }]
             },
