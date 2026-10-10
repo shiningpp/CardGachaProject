@@ -1,0 +1,780 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>网页抽卡工具 - 自定义套组卡池版</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap');
+
+        body {
+            font-family: 'Inter', system-ui, -apple-system, sans-serif;
+            background-color: #0c0d12;
+            color: #f3f4f6;
+            min-height: 100vh;
+        }
+
+        /* 3D 视角与卡片效果 */
+        .card-container {
+            perspective: 1000px;
+        }
+
+        .card {
+            width: 100%;
+            height: 100%;
+            border-radius: 12px;
+            position: relative;
+            transform-style: preserve-3d;
+            transition: transform 0.15s ease-out, box-shadow 0.3s ease;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.6);
+            background: #181920;
+            border: 2px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .card.n { border-color: rgba(156, 163, 175, 0.8); }
+        .card.sr { border-color: rgba(59, 130, 246, 0.9); box-shadow: 0 0 15px rgba(59, 130, 246, 0.3); }
+        .card.ssr { border-color: rgba(234, 179, 8, 1); box-shadow: 0 0 25px rgba(234, 179, 8, 0.5); }
+
+        .card-content {
+            position: absolute;
+            inset: 0;
+            padding: 10px;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            background: linear-gradient(145deg, #1f2029 0%, #111218 100%);
+            border-radius: 10px;
+            pointer-events: none;
+        }
+
+        .card-shine {
+            position: absolute;
+            inset: 0;
+            border-radius: 10px;
+            z-index: 20;
+            pointer-events: none;
+            mix-blend-mode: color-dodge;
+            opacity: 0;
+            transition: opacity 0.2s ease;
+        }
+
+        /* 召唤动画与遮罩 */
+        #gachaOverlay {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(8, 9, 13, 0.94);
+            z-index: 1000;
+            backdrop-filter: blur(8px);
+        }
+
+        .summon-orb {
+            width: 140px;
+            height: 140px;
+            border-radius: 50%;
+            background: radial-gradient(circle, #fff 0%, #eab308 35%, #ef4444 70%, #111 100%);
+            box-shadow: 0 0 50px #eab308, 0 0 100px #ef4444;
+            animation: orbPulse 1.2s infinite alternate ease-in-out;
+            cursor: pointer;
+        }
+
+        @keyframes orbPulse {
+            0% { transform: scale(0.95); box-shadow: 0 0 30px #eab308, 0 0 60px #ef4444; }
+            100% { transform: scale(1.1); box-shadow: 0 0 70px #fef08a, 0 0 130px #dc2626; }
+        }
+
+        .card-reveal-anim {
+            animation: cardPopIn 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+            opacity: 0;
+            transform: scale(0.3) translateY(80px);
+        }
+
+        @keyframes cardPopIn {
+            0% { opacity: 0; transform: scale(0.3) translateY(80px); }
+            100% { opacity: 1; transform: scale(1) translateY(0); }
+        }
+
+        /* 自定义滚动条 */
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: #111218; }
+        ::-webkit-scrollbar-thumb { background: #272935; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #3b3e51; }
+    </style>
+</head>
+<body class="flex flex-col min-h-screen">
+
+    <!-- 抽卡动画遮罩层 -->
+    <div id="gachaOverlay" class="flex-col items-center justify-center">
+        <div class="summon-orb flex items-center justify-center text-gray-900 font-extrabold text-lg select-none" onclick="finishSummonAnimation()">
+            ✨ 点击开启
+        </div>
+        <p class="text-gray-400 mt-6 text-sm font-medium tracking-wide" id="summonTip">正在封印解除，感应卡包蕴含的能量...</p>
+    </div>
+
+    <!-- 顶部导航栏 -->
+    <header class="bg-gray-900/90 backdrop-blur border-b border-gray-800 sticky top-0 z-50 px-4 py-3">
+        <div class="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-4">
+            <div class="flex items-center space-x-2">
+                <div class="w-8 h-8 rounded-lg bg-amber-500/20 border border-amber-500/50 flex items-center justify-center text-amber-400 font-bold">TCG</div>
+                <h1 class="text-lg font-bold bg-clip-text text-transparent bg-gradient-to-r from-amber-400 to-orange-500">魔幻卡包工坊</h1>
+            </div>
+
+            <nav class="flex items-center gap-2">
+                <button class="nav-btn active px-4 py-2 text-sm font-semibold rounded-lg bg-gradient-to-r from-amber-500 to-amber-600 text-gray-950 shadow-lg shadow-amber-500/20 transition-all" onclick="switchTab('gacha', this)">🎴 抽卡中心</button>
+                <button class="nav-btn px-4 py-2 text-sm font-semibold rounded-lg bg-gray-800 text-gray-300 hover:bg-gray-700 transition-all" onclick="switchTab('workshop', this)">🎨 套组工坊</button>
+                <button class="nav-btn px-4 py-2 text-sm font-semibold rounded-lg bg-gray-800 text-gray-300 hover:bg-gray-700 transition-all" onclick="switchTab('collection', this)">📖 我的集卡册</button>
+            </nav>
+
+            <div class="flex items-center gap-3 bg-gray-950 px-4 py-1.5 rounded-full border border-gray-800">
+                <span class="text-amber-400 font-bold text-sm">💰 <span id="coinAmount">0</span></span>
+                <button onclick="claimDailyCoins()" class="text-xs bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-400 font-medium px-2.5 py-1 rounded-full border border-emerald-500/40 transition-colors">
+                    每日+100
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- 主体容器 -->
+    <main class="max-w-7xl mx-auto w-full p-4 md:p-6 flex-grow">
+
+        <!-- Tab 1: 抽卡中心 -->
+        <section id="gacha" class="tab-pane flex flex-col gap-6">
+            <div class="flex flex-col lg:flex-row gap-6">
+                <!-- 左侧：卡包套组选择器 -->
+                <div class="lg:w-1/3 bg-gray-900/80 border border-gray-800 rounded-2xl p-5 flex flex-col gap-4">
+                    <div class="flex items-center justify-between">
+                        <h2 class="text-base font-bold text-amber-400 flex items-center gap-2">
+                            📦 可选卡包套组
+                        </h2>
+                        <span class="text-xs text-gray-500" id="packCountTip">共 0 个卡包</span>
+                    </div>
+
+                    <!-- 卡包列表 -->
+                    <div class="flex flex-col gap-3 max-h-[560px] overflow-y-auto pr-1" id="packListContainer">
+                        <!-- 动态渲染卡包列表 -->
+                    </div>
+                </div>
+
+                <!-- 右侧：选定卡包详情与抽卡区域 -->
+                <div class="lg:w-2/3 bg-gray-900/80 border border-gray-800 rounded-2xl p-6 flex flex-col justify-between">
+                    <div>
+                        <!-- 卡包头部信息 -->
+                        <div class="flex flex-col sm:flex-row sm:items-center justify-between pb-4 mb-4 border-b border-gray-800 gap-3">
+                            <div>
+                                <div class="flex items-center gap-2">
+                                    <span id="activePackBadge" class="px-2 py-0.5 text-xs rounded bg-amber-500/20 text-amber-400 font-semibold border border-amber-500/30">官方套组</span>
+                                    <h3 id="activePackTitle" class="text-xl font-bold text-white">请选择卡包</h3>
+                                </div>
+                                <p id="activePackDesc" class="text-xs text-gray-400 mt-1">点击左侧卡包列表选择你想抽取的套组卡池。</p>
+                            </div>
+                            <div class="text-xs text-gray-400 bg-gray-950 px-3 py-2 rounded-xl border border-gray-800">
+                                概率预览：<span class="text-amber-400 font-bold">SSR 5%</span> | <span class="text-blue-400 font-bold">SR 25%</span> | <span class="text-gray-400 font-bold">N 70%</span>
+                            </div>
+                        </div>
+
+                        <!-- 当前卡包包含卡片内容预览 -->
+                        <div class="mb-6">
+                            <h4 class="text-xs font-semibold text-gray-400 mb-3 flex items-center gap-1.5">
+                                🔍 该套组包含以下卡片列表（仅从以下卡片中随机抽取）：
+                            </h4>
+                            <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 max-h-[280px] overflow-y-auto p-1" id="activePackCardsPreview">
+                                <!-- 包含卡片预览 -->
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 抽卡结果展现 & 抽卡操作按纽区 -->
+                    <div class="pt-4 border-t border-gray-800 flex flex-col gap-4">
+                        <div id="gachaResultArea" class="min-h-[160px] flex items-center justify-center gap-4 flex-wrap bg-gray-950/50 p-4 rounded-xl border border-gray-800/60">
+                            <p class="text-xs text-gray-500">点击下方按钮支付金币开始抽取当前卡包</p>
+                        </div>
+
+                        <div class="flex flex-wrap items-center justify-center gap-4">
+                            <button onclick="executeDraw(1)" class="flex-1 sm:flex-none px-6 py-3 rounded-xl font-bold bg-amber-500 text-gray-950 hover:bg-amber-400 transition-all shadow-lg shadow-amber-500/10 active:scale-95 disabled:opacity-50">
+                                🔮 购买单抽 (10💰)
+                            </button>
+                            <button onclick="executeDraw(5)" class="flex-1 sm:flex-none px-6 py-3 rounded-xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 text-white hover:from-blue-500 hover:to-indigo-500 transition-all shadow-lg shadow-blue-500/20 active:scale-95 disabled:opacity-50">
+                                💫 优惠五连抽 (45💰)
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Tab 2: 套组工坊 -->
+        <section id="workshop" class="tab-pane hidden flex-col gap-6">
+            <div class="bg-gray-900/80 border border-gray-800 rounded-2xl p-6">
+                <div class="max-w-3xl mb-6">
+                    <h2 class="text-xl font-bold text-amber-400 mb-2">🎨 卡片套组（卡包）工坊</h2>
+                    <p class="text-xs text-gray-400 leading-relaxed">
+                        在这里定制你自己的专属卡包。选择预设的卡包套组模板，为每个位置填入名字、图片与描述。
+                        制作完成后**花费 30 金币上架发布**，该套组便会立刻出现在“抽卡中心”供所有人（包含你自己）购买抽取！
+                    </p>
+                </div>
+
+                <!-- 模板选择器 -->
+                <div class="flex flex-wrap items-center gap-4 p-4 bg-gray-950 rounded-xl border border-gray-800 mb-6">
+                    <span class="text-xs font-bold text-gray-300">选择卡包生成模板：</span>
+                    <button id="tplBtnMini" onclick="selectWorkshopTemplate('mini')" class="px-4 py-2 rounded-lg text-xs font-bold border transition-all bg-amber-500/20 border-amber-500 text-amber-400">
+                        小型包 (2张 N + 1张 SR)
+                    </button>
+                    <button id="tplBtnStandard" onclick="selectWorkshopTemplate('standard')" class="px-4 py-2 rounded-lg text-xs font-bold border transition-all bg-gray-900 border-gray-800 text-gray-400 hover:border-gray-700">
+                        标准包 (3张 N + 2张 SR + 1张 SSR)
+                    </button>
+                </div>
+
+                <!-- 套组信息描述设置 -->
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+                    <div>
+                        <label class="block text-xs text-gray-400 mb-1">卡包套组名称</label>
+                        <input type="text" id="workshopPackTitle" value="我的自定义神话包" class="w-full bg-gray-950 border border-gray-800 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-amber-500">
+                    </div>
+                    <div>
+                        <label class="block text-xs text-gray-400 mb-1">套组简介说明</label>
+                        <input type="text" id="workshopPackDesc" value="包含珍稀自制卡片的全新卡包套组。" class="w-full bg-gray-950 border border-gray-800 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-amber-500">
+                    </div>
+                </div>
+
+                <!-- 卡片槽位填空网格 -->
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-6" id="workshopSlotsGrid">
+                    <!-- 动态注入槽位编辑卡 -->
+                </div>
+
+                <!-- 发布按钮 -->
+                <div class="flex flex-col items-center gap-3 pt-4 border-t border-gray-800">
+                    <button onclick="publishCustomPack()" class="px-8 py-3 rounded-xl font-bold bg-gradient-to-r from-amber-500 to-orange-500 text-gray-950 hover:from-amber-400 hover:to-orange-400 transition-all shadow-lg shadow-amber-500/20 active:scale-95">
+                        🚀 支付 30 💰 上架发布套组至抽卡中心
+                    </button>
+                    <p id="workshopMessage" class="text-xs text-center min-h-[16px] font-medium"></p>
+                </div>
+            </div>
+        </section>
+
+        <!-- Tab 3: 集卡册 -->
+        <section id="collection" class="tab-pane hidden flex-col gap-6">
+            <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 bg-gray-900/80 p-5 rounded-2xl border border-gray-800">
+                <div>
+                    <h2 class="text-xl font-bold text-amber-400">📖 我的集卡册</h2>
+                    <p class="text-xs text-gray-400 mt-1">这里只存放你在抽卡中心购买卡包抽到的卡片。重设或多余的卡片可选择分解回流金币。</p>
+                </div>
+                <div class="text-xs bg-gray-950 px-3 py-2 rounded-xl border border-gray-800 text-gray-400">
+                    分解规则：<span class="text-gray-300">N卡 +2💰</span> | <span class="text-blue-400">SR卡 +5💰</span> | <span class="text-amber-400">SSR卡 +20💰</span>
+                </div>
+            </div>
+
+            <!-- 卡册网格 -->
+            <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4" id="collectionGrid">
+                <!-- 动态渲染卡册 -->
+            </div>
+        </section>
+
+    </main>
+
+    <script>
+        // --- 预置系统默认数据 ---
+        const DEFAULT_PACKS = [
+            {
+                id: 'pack_system_01',
+                title: '创世神话 - 基础卡包',
+                desc: '官方经典起步卡包，包含最经典的创世卡牌。',
+                isOfficial: true,
+                cards: [
+                    { id: 'c_1', rarity: 'SSR', name: '星空巨龙', desc: '掌控浩瀚星辰力量的远古巨龙。', image: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?q=80&w=400&auto=format&fit=crop' },
+                    { id: 'c_2', rarity: 'SR', name: '赛博骑士', desc: '行走于霓虹暗巷中的执法者。', image: 'https://images.unsplash.com/photo-1519681393784-d120267933ba?q=80&w=400&auto=format&fit=crop' },
+                    { id: 'c_3', rarity: 'SR', name: '深海歌姬', desc: '用歌声引发风暴的海底符文侍者。', image: 'https://images.unsplash.com/photo-1518709268805-4e9042af9f23?q=80&w=400&auto=format&fit=crop' },
+                    { id: 'c_4', rarity: 'N', name: '初级史莱姆', desc: '到处可见的温和流体生物。', image: 'https://images.unsplash.com/photo-1534447677768-be436bb09401?q=80&w=400&auto=format&fit=crop' },
+                    { id: 'c_5', rarity: 'N', name: '森林哥布林', desc: '善于偷袭的小型怪物。', image: 'https://images.unsplash.com/photo-1578632767115-351597cf2477?q=80&w=400&auto=format&fit=crop' }
+                ]
+            },
+            {
+                id: 'pack_system_02',
+                title: '元素觉醒 - 扩展包',
+                desc: '聚焦自然与魔法力量的特别扩展套组。',
+                isOfficial: true,
+                cards: [
+                    { id: 'c_6', rarity: 'SSR', name: '炽热凤凰', desc: '自永恒烈焰中涅槃重生的神兽。', image: 'https://images.unsplash.com/photo-1509198397868-475647b2a1e5?q=80&w=400&auto=format&fit=crop' },
+                    { id: 'c_7', rarity: 'SR', name: '寒冰守护者', desc: '用坚冰凝结盾牌的冰原战士。', image: 'https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?q=80&w=400&auto=format&fit=crop' },
+                    { id: 'c_8', rarity: 'N', name: '风灵精灵', desc: '欢快穿梭在树林间的小风精。', image: 'https://images.unsplash.com/photo-1511447333015-45b65e60f6d5?q=80&w=400&auto=format&fit=crop' },
+                    { id: 'c_9', rarity: 'N', name: '岩石傀儡', desc: '受到魔法驱使的坚硬石块。', image: 'https://images.unsplash.com/photo-1508873696983-2df515122519?q=80&w=400&auto=format&fit=crop' }
+                ]
+            }
+        ];
+
+        const WORKSHOP_TEMPLATES = {
+            mini: [
+                { rarity: 'N', name: '自制卡 N-1', desc: '套组基础卡片', image: 'https://images.unsplash.com/photo-1534447677768-be436bb09401?q=80&w=400&auto=format&fit=crop' },
+                { rarity: 'N', name: '自制卡 N-2', desc: '套组基础卡片', image: 'https://images.unsplash.com/photo-1534447677768-be436bb09401?q=80&w=400&auto=format&fit=crop' },
+                { rarity: 'SR', name: '自制卡 SR-1', desc: '套组精英卡片', image: 'https://images.unsplash.com/photo-1519681393784-d120267933ba?q=80&w=400&auto=format&fit=crop' }
+            ],
+            standard: [
+                { rarity: 'N', name: '自制卡 N-1', desc: '标准套组N卡', image: 'https://images.unsplash.com/photo-1534447677768-be436bb09401?q=80&w=400&auto=format&fit=crop' },
+                { rarity: 'N', name: '自制卡 N-2', desc: '标准套组N卡', image: 'https://images.unsplash.com/photo-1534447677768-be436bb09401?q=80&w=400&auto=format&fit=crop' },
+                { rarity: 'N', name: '自制卡 N-3', desc: '标准套组N卡', image: 'https://images.unsplash.com/photo-1534447677768-be436bb09401?q=80&w=400&auto=format&fit=crop' },
+                { rarity: 'SR', name: '自制卡 SR-1', desc: '标准套组SR卡', image: 'https://images.unsplash.com/photo-1519681393784-d120267933ba?q=80&w=400&auto=format&fit=crop' },
+                { rarity: 'SR', name: '自制卡 SR-2', desc: '标准套组SR卡', image: 'https://images.unsplash.com/photo-1519681393784-d120267933ba?q=80&w=400&auto=format&fit=crop' },
+                { rarity: 'SSR', name: '自制卡 SSR-1', desc: '标准套组传说卡', image: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?q=80&w=400&auto=format&fit=crop' }
+            ]
+        };
+
+        // 当前应用状态
+        let activePackId = 'pack_system_01';
+        let currentWorkshopTemplateKey = 'mini';
+        let workshopDraftSlots = JSON.parse(JSON.stringify(WORKSHOP_TEMPLATES.mini));
+        let pendingDrawCount = 1;
+
+        // --- 本地持久化储存支持 ---
+        function getCoins() {
+            let coins = localStorage.getItem('tcg_user_coins');
+            if (coins === null) { coins = 100; localStorage.setItem('tcg_user_coins', coins); }
+            return parseInt(coins);
+        }
+
+        function setCoins(amount) {
+            localStorage.setItem('tcg_user_coins', amount);
+            document.getElementById('coinAmount').textContent = amount;
+        }
+
+        function getAllPacks() {
+            let customPacks = JSON.parse(localStorage.getItem('tcg_custom_packs')) || [];
+            return [...DEFAULT_PACKS, ...customPacks];
+        }
+
+        function getInventory() {
+            return JSON.parse(localStorage.getItem('tcg_user_inventory')) || {};
+        }
+
+        function saveInventory(inv) {
+            localStorage.setItem('tcg_user_inventory', JSON.stringify(inv));
+        }
+
+        // Tab 切换逻辑
+        function switchTab(tabId, btnEl) {
+            document.querySelectorAll('.tab-pane').forEach(pane => pane.classList.add('hidden'));
+            document.querySelectorAll('.nav-btn').forEach(btn => {
+                btn.className = "nav-btn px-4 py-2 text-sm font-semibold rounded-lg bg-gray-800 text-gray-300 hover:bg-gray-700 transition-all";
+            });
+
+            document.getElementById(tabId).classList.remove('hidden');
+            if(btnEl) {
+                btnEl.className = "nav-btn active px-4 py-2 text-sm font-semibold rounded-lg bg-gradient-to-r from-amber-500 to-amber-600 text-gray-950 shadow-lg shadow-amber-500/20 transition-all";
+            }
+
+            if (tabId === 'gacha') renderGachaPackSelector();
+            if (tabId === 'collection') renderCollectionGrid();
+        }
+
+        function claimDailyCoins() {
+            const lastClaim = localStorage.getItem('tcg_last_claim');
+            const today = new Date().toDateString();
+            if (lastClaim === today) {
+                alert("今天已经领过 100 金币补贴啦，明天再来吧！");
+                return;
+            }
+            setCoins(getCoins() + 100);
+            localStorage.setItem('tcg_last_claim', today);
+            alert("成功领取每日福利 100 金币！");
+        }
+
+        // --- 1. 抽卡中心与卡包选择器逻辑 ---
+        function renderGachaPackSelector() {
+            const packs = getAllPacks();
+            const container = document.getElementById('packListContainer');
+            document.getElementById('packCountTip').textContent = `共 ${packs.length} 个卡包`;
+            container.innerHTML = '';
+
+            // 如果当前选择的卡包已被删除或不存在，默认选第一个
+            if (!packs.some(p => p.id === activePackId)) {
+                activePackId = packs[0].id;
+            }
+
+            packs.forEach(pack => {
+                const isActive = pack.id === activePackId;
+                const packCard = document.createElement('div');
+                packCard.className = `p-3.5 rounded-xl border cursor-pointer transition-all flex flex-col gap-1.5 ${
+                    isActive 
+                        ? 'bg-amber-500/10 border-amber-500 shadow-lg shadow-amber-500/5' 
+                        : 'bg-gray-950/60 border-gray-800/80 hover:border-gray-700 hover:bg-gray-900'
+                }`;
+                packCard.onclick = () => {
+                    activePackId = pack.id;
+                    renderGachaPackSelector();
+                };
+
+                packCard.innerHTML = `
+                    <div class="flex items-center justify-between">
+                        <span class="font-bold text-sm ${isActive ? 'text-amber-400' : 'text-gray-200'}">${pack.title}</span>
+                        <span class="text-[10px] px-1.5 py-0.5 rounded ${pack.isOfficial ? 'bg-blue-500/20 text-blue-400 border border-blue-500/30' : 'bg-purple-500/20 text-purple-400 border border-purple-500/30'}">
+                            ${pack.isOfficial ? '官方' : '玩家作品'}
+                        </span>
+                    </div>
+                    <p class="text-xs text-gray-400 line-clamp-1">${pack.desc}</p>
+                    <div class="text-[11px] text-gray-500 mt-1 flex items-center justify-between">
+                        <span>含有卡片：${pack.cards.length} 张</span>
+                        ${isActive ? '<span class="text-amber-400 font-semibold">● 当前选择</span>' : ''}
+                    </div>
+                `;
+                container.appendChild(packCard);
+            });
+
+            // 更新右侧选中的卡包信息
+            const currentPack = packs.find(p => p.id === activePackId);
+            if (currentPack) {
+                document.getElementById('activePackTitle').textContent = currentPack.title;
+                document.getElementById('activePackDesc').textContent = currentPack.desc;
+                
+                const badge = document.getElementById('activePackBadge');
+                badge.textContent = currentPack.isOfficial ? '官方套组' : '玩家自制套组';
+                badge.className = currentPack.isOfficial 
+                    ? "px-2 py-0.5 text-xs rounded bg-blue-500/20 text-blue-400 font-semibold border border-blue-500/30"
+                    : "px-2 py-0.5 text-xs rounded bg-purple-500/20 text-purple-400 font-semibold border border-purple-500/30";
+
+                // 渲染该卡包内部卡片预览
+                const previewGrid = document.getElementById('activePackCardsPreview');
+                previewGrid.innerHTML = '';
+                currentPack.cards.forEach(card => {
+                    const cardTag = document.createElement('div');
+                    cardTag.className = "bg-gray-950 p-2 rounded-lg border border-gray-800 flex items-center gap-2";
+                    
+                    let rarityColor = "text-gray-400 bg-gray-800";
+                    if (card.rarity === 'SR') rarityColor = "text-blue-400 bg-blue-950 border-blue-800";
+                    if (card.rarity === 'SSR') rarityColor = "text-amber-400 bg-amber-950 border-amber-800";
+
+                    cardTag.innerHTML = `
+                        <img src="${card.image}" class="w-8 h-8 rounded object-cover bg-gray-900" alt="">
+                        <div class="flex flex-col min-w-0">
+                            <span class="text-xs font-semibold text-gray-200 truncate">${card.name}</span>
+                            <span class="text-[9px] font-bold px-1 rounded w-max ${rarityColor}">${card.rarity}</span>
+                        </div>
+                    `;
+                    previewGrid.appendChild(cardTag);
+                });
+            }
+        }
+
+        function executeDraw(count) {
+            const cost = count === 1 ? 10 : 45;
+            const coins = getCoins();
+
+            if (coins < cost) {
+                alert(`金币不足！购买抽取需要 ${cost} 金币，你当前拥有 ${coins} 金币。`);
+                return;
+            }
+
+            setCoins(coins - cost);
+            pendingDrawCount = count;
+
+            // 显示召唤过场动画
+            const overlay = document.getElementById('gachaOverlay');
+            overlay.style.display = 'flex';
+            document.getElementById('summonTip').textContent = count === 1 ? "正在感应套组能量，解开卡包..." : "星光汇聚，正在连续揭开 5 组封印...";
+        }
+
+        function finishSummonAnimation() {
+            document.getElementById('gachaOverlay').style.display = 'none';
+
+            const packs = getAllPacks();
+            const currentPack = packs.find(p => p.id === activePackId) || packs[0];
+            const pool = currentPack.cards;
+
+            const resultArea = document.getElementById('gachaResultArea');
+            resultArea.innerHTML = '';
+
+            let inventory = getInventory();
+            let drawnResults = [];
+
+            for (let i = 0; i < pendingDrawCount; i++) {
+                // 概率抽取：SSR 5%, SR 25%, N 70%
+                const rand = Math.random() * 100;
+                let targetRarity = 'N';
+                if (rand < 5) targetRarity = 'SSR';
+                else if (rand < 30) targetRarity = 'SR';
+
+                // 核心：仅在该卡包内部寻找目标稀有度的卡
+                let availableCards = pool.filter(c => c.rarity === targetRarity);
+                // 降级兜底（如果该卡包未设计该稀有度）
+                if (availableCards.length === 0) availableCards = pool;
+
+                const drawnCard = availableCards[Math.floor(Math.random() * availableCards.length)];
+                drawnResults.push(drawnCard);
+
+                // 关键点：只有实际抽中后才存入集卡册背包
+                if (inventory[drawnCard.id]) {
+                    inventory[drawnCard.id].count++;
+                } else {
+                    inventory[drawnCard.id] = { card: drawnCard, count: 1 };
+                }
+            }
+
+            saveInventory(inventory);
+
+            // 渲染抽卡卡牌 3D 列表
+            drawnResults.forEach((card, idx) => {
+                const cardWrapper = document.createElement('div');
+                cardWrapper.className = 'card-container w-36 h-52 card-reveal-anim';
+                cardWrapper.style.animationDelay = `${idx * 0.12}s`;
+
+                cardWrapper.innerHTML = `
+                    <div class="card ${card.rarity.toLowerCase()}">
+                        <div class="card-content">
+                            <div class="flex justify-between items-center font-bold text-[10px]">
+                                <span class="${card.rarity === 'SSR' ? 'text-amber-400' : card.rarity === 'SR' ? 'text-blue-400' : 'text-gray-400'}">${card.rarity}</span>
+                                <span class="text-gray-500">PACK</span>
+                            </div>
+                            <div class="w-full h-24 rounded overflow-hidden my-1 bg-black">
+                                <img src="${card.image}" class="w-full h-full object-cover" alt="">
+                            </div>
+                            <div>
+                                <h5 class="text-xs font-bold text-white truncate">${card.name}</h5>
+                                <p class="text-[9px] text-gray-400 line-clamp-1 mt-0.5">${card.desc}</p>
+                            </div>
+                        </div>
+                        <div class="card-shine"></div>
+                    </div>
+                `;
+                resultArea.appendChild(cardWrapper);
+
+                // 绑定 3D 视差特效
+                setTimeout(() => {
+                    const cardEl = cardWrapper.querySelector('.card');
+                    const shineEl = cardWrapper.querySelector('.card-shine');
+                    bindCard3D(cardWrapper, cardEl, shineEl);
+                }, 300);
+            });
+        }
+
+        // --- 2. 卡片套组工坊逻辑 ---
+        function selectWorkshopTemplate(templateKey) {
+            currentWorkshopTemplateKey = templateKey;
+            workshopDraftSlots = JSON.parse(JSON.stringify(WORKSHOP_TEMPLATES[templateKey]));
+
+            document.getElementById('tplBtnMini').className = `px-4 py-2 rounded-lg text-xs font-bold border transition-all ${
+                templateKey === 'mini' ? 'bg-amber-500/20 border-amber-500 text-amber-400' : 'bg-gray-900 border-gray-800 text-gray-400 hover:border-gray-700'
+            }`;
+            document.getElementById('tplBtnStandard').className = `px-4 py-2 rounded-lg text-xs font-bold border transition-all ${
+                templateKey === 'standard' ? 'bg-amber-500/20 border-amber-500 text-amber-400' : 'bg-gray-900 border-gray-800 text-gray-400 hover:border-gray-700'
+            }`;
+
+            renderWorkshopSlots();
+        }
+
+        function renderWorkshopSlots() {
+            const grid = document.getElementById('workshopSlotsGrid');
+            grid.innerHTML = '';
+
+            workshopDraftSlots.forEach((slot, index) => {
+                const box = document.createElement('div');
+                box.className = "bg-gray-950 p-4 rounded-xl border border-gray-800 flex flex-col gap-3";
+
+                box.innerHTML = `
+                    <div class="text-xs font-bold text-amber-400 flex items-center justify-between">
+                        <span>槽位 #${index + 1}</span>
+                        <span class="px-1.5 py-0.5 rounded text-[10px] bg-gray-900 border border-gray-800 text-gray-300">稀有度固定：${slot.rarity}</span>
+                    </div>
+
+                    <div class="flex gap-3 items-center">
+                        <!-- 槽位 3D 预览小卡 -->
+                        <div class="card-container slot-preview-${index} w-24 h-36 flex-shrink-0">
+                            <div class="card ${slot.rarity.toLowerCase()}">
+                                <div class="card-content p-1.5">
+                                    <div class="flex justify-between text-[8px] font-bold">
+                                        <span class="${slot.rarity === 'SSR' ? 'text-amber-400' : slot.rarity === 'SR' ? 'text-blue-400' : 'text-gray-400'}">${slot.rarity}</span>
+                                        <span class="text-gray-500">PREVIEW</span>
+                                    </div>
+                                    <div class="w-full h-16 rounded overflow-hidden bg-black my-1">
+                                        <img id="slot_img_prev_${index}" src="${slot.image}" class="w-full h-full object-cover" alt="">
+                                    </div>
+                                    <div>
+                                        <h6 id="slot_name_prev_${index}" class="text-[10px] font-bold text-white truncate">${slot.name}</h6>
+                                        <p id="slot_desc_prev_${index}" class="text-[8px] text-gray-400 line-clamp-1">${slot.desc}</p>
+                                    </div>
+                                </div>
+                                <div class="card-shine"></div>
+                            </div>
+                        </div>
+
+                        <!-- 填空编辑域 -->
+                        <div class="flex-grow flex flex-col gap-2 min-w-0">
+                            <div>
+                                <label class="block text-[10px] text-gray-500 mb-0.5">卡片名称</label>
+                                <input type="text" value="${slot.name}" oninput="updateDraftSlot(${index}, 'name', this.value)" class="w-full bg-gray-900 border border-gray-800 rounded px-2 py-1 text-xs text-white">
+                            </div>
+                            <div>
+                                <label class="block text-[10px] text-gray-500 mb-0.5">卡面图源</label>
+                                <input type="file" accept="image/*" onchange="updateDraftSlotImage(${index}, this)" class="w-full text-[10px] text-gray-400 file:mr-2 file:py-0.5 file:px-2 file:rounded file:border-0 file:text-[10px] file:bg-gray-800 file:text-gray-300">
+                            </div>
+                            <div>
+                                <label class="block text-[10px] text-gray-500 mb-0.5">卡片描述</label>
+                                <input type="text" value="${slot.desc}" oninput="updateDraftSlot(${index}, 'desc', this.value)" class="w-full bg-gray-900 border border-gray-800 rounded px-2 py-1 text-xs text-white">
+                            </div>
+                        </div>
+                    </div>
+                `;
+                grid.appendChild(box);
+
+                bindCard3D(box.querySelector(`.slot-preview-${index}`), box.querySelector('.card'), box.querySelector('.card-shine'));
+            });
+        }
+
+        function updateDraftSlot(index, field, val) {
+            workshopDraftSlots[index][field] = val;
+            if (field === 'name') document.getElementById(`slot_name_prev_${index}`).textContent = val || '未命名';
+            if (field === 'desc') document.getElementById(`slot_desc_prev_${index}`).textContent = val || '无描述';
+        }
+
+        function updateDraftSlotImage(index, fileInput) {
+            const file = fileInput.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = e => {
+                    workshopDraftSlots[index].image = e.target.result;
+                    document.getElementById(`slot_img_prev_${index}`).src = e.target.result;
+                };
+                reader.readAsDataURL(file);
+            }
+        }
+
+        // 上架发布自定义套组至抽卡中心
+        function publishCustomPack() {
+            const cost = 30;
+            const coins = getCoins();
+            const msgEl = document.getElementById('workshopMessage');
+
+            if (coins < cost) {
+                msgEl.className = "text-xs text-center font-medium text-rose-500";
+                msgEl.textContent = `金币不足！发布套组需要 ${cost} 金币，你当前只有 ${coins} 金币。`;
+                return;
+            }
+
+            const title = document.getElementById('workshopPackTitle').value.trim() || "未命名套组卡包";
+            const desc = document.getElementById('workshopPackDesc').value.trim() || "玩家自制卡包套组。";
+
+            setCoins(coins - cost);
+
+            // 构造全新套组卡包
+            const newPack = {
+                id: 'pack_custom_' + Date.now(),
+                title: title,
+                desc: desc,
+                isOfficial: false,
+                cards: workshopDraftSlots.map((slot, i) => ({
+                    id: `c_custom_${Date.now()}_${i}`,
+                    rarity: slot.rarity,
+                    name: slot.name,
+                    desc: slot.desc,
+                    image: slot.image
+                }))
+            };
+
+            let customPacks = JSON.parse(localStorage.getItem('tcg_custom_packs')) || [];
+            customPacks.push(newPack);
+            localStorage.setItem('tcg_custom_packs', JSON.stringify(customPacks));
+
+            msgEl.className = "text-xs text-center font-medium text-emerald-400";
+            msgEl.textContent = "🎉 成功发布套组！卡包已上线至“抽卡中心”，可以去选择它并抽取了！";
+
+            setTimeout(() => { msgEl.textContent = ''; }, 4000);
+        }
+
+        // --- 3. 集卡册与分解机制 ---
+        function renderCollectionGrid() {
+            const grid = document.getElementById('collectionGrid');
+            const inventory = getInventory();
+            grid.innerHTML = '';
+
+            const itemKeys = Object.keys(inventory);
+            if (itemKeys.length === 0) {
+                grid.innerHTML = '<div class="col-span-full py-12 text-center text-gray-500 text-sm">你的集卡册空空如也，快去抽卡中心抽取卡包吧！</div>';
+                return;
+            }
+
+            itemKeys.forEach(key => {
+                const item = inventory[key];
+                if (!item || item.count <= 0) return;
+
+                const card = item.card;
+                let refund = 2;
+                if (card.rarity === 'SR') refund = 5;
+                if (card.rarity === 'SSR') refund = 20;
+
+                const cardBox = document.createElement('div');
+                cardBox.className = "bg-gray-900/80 p-3 rounded-xl border border-gray-800 flex flex-col items-center gap-2";
+
+                cardBox.innerHTML = `
+                    <div class="card-container col-card-item w-36 h-52">
+                        <div class="card ${card.rarity.toLowerCase()}">
+                            <div class="card-content p-2">
+                                <div class="flex justify-between text-[10px] font-bold">
+                                    <span class="${card.rarity === 'SSR' ? 'text-amber-400' : card.rarity === 'SR' ? 'text-blue-400' : 'text-gray-400'}">${card.rarity}</span>
+                                    <span class="text-gray-500">OWNED</span>
+                                </div>
+                                <div class="w-full h-24 rounded overflow-hidden bg-black my-1">
+                                    <img src="${card.image}" class="w-full h-full object-cover" alt="">
+                                </div>
+                                <div>
+                                    <h5 class="text-xs font-bold text-white truncate">${card.name}</h5>
+                                    <p class="text-[9px] text-gray-400 line-clamp-1 mt-0.5">${card.desc}</p>
+                                </div>
+                            </div>
+                            <div class="card-shine"></div>
+                        </div>
+                    </div>
+
+                    <div class="w-full flex items-center justify-between pt-1 border-t border-gray-800/60">
+                        <span class="text-xs font-extrabold text-amber-400">保有: x${item.count}</span>
+                        <button onclick="recycleCard('${card.id}', ${refund})" class="px-2 py-1 rounded text-[10px] font-bold bg-rose-500/20 text-rose-400 hover:bg-rose-500/30 border border-rose-500/30 transition-colors">
+                            分解 (+${refund}💰)
+                        </button>
+                    </div>
+                `;
+                grid.appendChild(cardBox);
+
+                bindCard3D(cardBox.querySelector('.col-card-item'), cardBox.querySelector('.card'), cardBox.querySelector('.card-shine'));
+            });
+        }
+
+        function recycleCard(cardId, refund) {
+            let inventory = getInventory();
+            if (inventory[cardId] && inventory[cardId].count > 0) {
+                inventory[cardId].count--;
+                if (inventory[cardId].count === 0) {
+                    delete inventory[cardId];
+                }
+                saveInventory(inventory);
+                setCoins(getCoins() + refund);
+                renderCollectionGrid();
+            }
+        }
+
+        // --- 4. 辅助函数：绑定 3D 倾斜与反光 ---
+        function bindCard3D(container, cardEl, shineEl) {
+            if (!container || !cardEl || !shineEl) return;
+
+            container.addEventListener('mousemove', (e) => {
+                const rect = container.getBoundingClientRect();
+                const x = e.clientX - rect.left;
+                const y = e.clientY - rect.top;
+                const rotateX = -((y - rect.height / 2) / (rect.height / 2)) * 16;
+                const rotateY = ((x - rect.width / 2) / (rect.width / 2)) * 16;
+
+                cardEl.style.transform = `rotateX(${rotateX}deg) rotateY(${rotateY}deg) scale(1.04)`;
+                shineEl.style.opacity = '0.85';
+                shineEl.style.background = `radial-gradient(circle at ${(x / rect.width) * 100}% ${(y / rect.height) * 100}%, rgba(255,255,255,0.7) 0%, rgba(245,158,11,0.25) 40%, transparent 80%)`;
+            });
+
+            container.addEventListener('mouseleave', () => {
+                cardEl.style.transform = 'rotateX(0deg) rotateY(0deg) scale(1)';
+                shineEl.style.opacity = '0';
+            });
+        }
+
+        // 初始化全局渲染
+        window.onload = function() {
+            document.getElementById('coinAmount').textContent = getCoins();
+            renderGachaPackSelector();
+            renderWorkshopSlots();
+        };
+    </script>
+</body>
+</html>
