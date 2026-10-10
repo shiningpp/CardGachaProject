@@ -658,7 +658,9 @@
                     { label: '内置纹样（无图案贴图时）', type: 'select', options: ['菱格', '斜纹', '圆点', '六边形', '青海波（鱼鳞）', '波浪', '十字星', '同心圆', '雾纹', '编织', '蜂窝点', '嵌套菱形', '雕花波纹', '四瓣星'], def: 0 },
                     { label: '反射光强弱对比', min: 0, max: 3, step: 0.05, def: 1.2 },
                     { label: '光源高度', min: 0.2, max: 2, step: 0.01, def: 0.8 },
-                    { label: '反射光集中度', min: 4, max: 120, step: 1, def: 30 }
+                    { label: '反射光集中度', min: 4, max: 120, step: 1, def: 30 },
+                    { label: '彩虹跨度（整图色带数）', min: 0, max: 4, step: 0.05, def: 1.2 },
+                    { label: '彩虹角度', min: 0, max: 180, step: 1, def: 35 }
                 ],
                 tex: [
                     { k: 'pattern', label: '图案贴图（平铺，可选，缺省为菱格）' },
@@ -726,7 +728,7 @@
         const FRAG_SRC = `precision highp float;
         varying vec2 vUv;
         uniform vec2 uRes; uniform vec2 uMouse; uniform float uTime, uFade, uEffect, uBoxAsp;
-        uniform float uP[10];
+        uniform float uP[12];
         uniform sampler2D uBase, uMask, uNormal, uPattern;
         uniform vec4 uHas; uniform vec4 uAsp;
         uniform vec2 uGloss; uniform float uMode; uniform vec3 uFM;
@@ -901,7 +903,7 @@
                 float spec = pow(max(dot(n,H),0.0), uP[9]);
                 float broad = pow(max(H.z,0.0), 12.0);
                 float shine = 0.3 + uP[7]*(1.4*spec + 0.5*broad);
-                col = hsv(fract(uP[3] + v*0.5 + dot(d, vec2(1.2,0.8))*uP[2]*1.6), uP[5], 1.0);
+                col = hsv(fract(uP[3] + v*0.5 + dot(d, vec2(1.2,0.8))*uP[2]*1.6 + dot((uv-0.5)*asp, vec2(cos(radians(uP[11])), sin(radians(uP[11]))))*uP[10]), uP[5], 1.0);
                 a = v*(0.4+lum*0.8)*shine*uP[0]*mask;
             }
             float fm = 1.0;
@@ -1018,7 +1020,7 @@
                 gl.bindTexture(gl.TEXTURE_2D, spr ? spr.tex : blank);
                 gl.uniform1f(u.uHasSprite, spr ? 1 : 0);
 
-                const p = new Float32Array(10);
+                const p = new Float32Array(12);
                 def.params.forEach((pd, i) => { p[i] = (fx && fx.p && fx.p[i] !== undefined) ? fx.p[i] : pd.def; });
                 gl.uniform2f(u.uRes, w, h);
                 gl.uniform2f(u.uMouse, mx, my);
