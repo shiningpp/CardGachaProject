@@ -716,6 +716,7 @@
         };
         const TEXT_LABEL = { tag: '稀有度标签', name: '卡片名称', desc: '卡片描述' };
         const getGloss = c => ({ s: 0.35, r: 0.5, ...(c.gloss || {}) });
+        const getArt = c => ({ zoom: 1, x: 0, y: 0, ...(c.art || {}) });
         const getFrame = c => {
             const f = c.frame || {};
             return { color: FRAME_COLOR[c.rarity] || '#2b2b36', opacity: 1, height: 34, panel: true, image: '', ...f, fxs: getFxs(f) };
@@ -733,6 +734,7 @@
         uniform vec4 uHas; uniform vec4 uAsp;
         uniform vec2 uGloss; uniform float uMode; uniform vec3 uFM;
         uniform sampler2D uSprite; uniform float uHasSprite;
+        uniform vec3 uArt;
 
         vec2 cover(vec2 uv, float ta){
             vec2 s = vec2(1.0);
@@ -749,9 +751,11 @@
             return mix(mix(hash21(i),hash21(i+vec2(1.0,0.0)),f.x), mix(hash21(i+vec2(0.0,1.0)),hash21(i+vec2(1.0,1.0)),f.x), f.y);
         }
         float fbm(vec2 p){ float v=0.0,a=0.5; for(int i=0;i<4;i++){ v+=a*vnoise(p); p*=2.03; a*=0.5; } return v; }
+        // 卡面图的缩放/平移（与 CSS transform 一致），蒙版、法线贴图跟随
+        vec2 artUv(vec2 uv){ return (uv-0.5-uArt.yz)/uArt.x+0.5; }
         float lumAt(vec2 uv){
             if (uHas.x < 0.5) return 0.5;
-            return dot(texture2D(uBase, cover(uv,uAsp.x)).rgb, vec3(0.299,0.587,0.114));
+            return dot(texture2D(uBase, cover(artUv(uv),uAsp.x)).rgb, vec3(0.299,0.587,0.114));
         }
         float hexd(vec2 p){ p = abs(p); return max(dot(p, vec2(0.5,0.8660254)), p.x); }
         vec2 hexLocal(vec2 uv){
@@ -801,7 +805,7 @@
             vec2 asp = vec2(uBoxAsp,1.0);
             vec2 p = uv*asp;
             float mask = 1.0;
-            if (uHas.y > 0.5) mask = texture2D(uMask, cover(uv,uAsp.y)).r;
+            if (uHas.y > 0.5) mask = texture2D(uMask, cover(artUv(uv),uAsp.y)).r;
             float lum = lumAt(uv);
             vec3 col = vec3(0.0); float a = 0.0;
 
@@ -865,7 +869,7 @@
             } else if (abs(uEffect-4.0) < 0.5) {
                 vec3 n;
                 if (uHas.z > 0.5) {
-                    n = texture2D(uNormal, cover(uv,uAsp.z)).rgb*2.0-1.0;
+                    n = texture2D(uNormal, cover(artUv(uv),uAsp.z)).rgb*2.0-1.0;
                     n.xy *= uP[5];
                     n = normalize(vec3(n.xy, max(n.z,0.2)));
                 } else {
@@ -941,7 +945,7 @@
             gl.enableVertexAttribArray(loc);
             gl.vertexAttribPointer(loc, 2, gl.FLOAT, false, 0, 0);
             const u = {};
-            ['uRes', 'uMouse', 'uTime', 'uFade', 'uEffect', 'uBoxAsp', 'uP', 'uHas', 'uAsp', 'uBase', 'uMask', 'uNormal', 'uPattern', 'uGloss', 'uMode', 'uFM', 'uSprite', 'uHasSprite']
+            ['uRes', 'uMouse', 'uTime', 'uFade', 'uEffect', 'uBoxAsp', 'uP', 'uHas', 'uAsp', 'uBase', 'uMask', 'uNormal', 'uPattern', 'uGloss', 'uMode', 'uFM', 'uSprite', 'uHasSprite', 'uArt']
                 .forEach(n => u[n] = gl.getUniformLocation(prog, n));
             gl.uniform1i(u.uBase, 0); gl.uniform1i(u.uMask, 1); gl.uniform1i(u.uNormal, 2); gl.uniform1i(u.uPattern, 3); gl.uniform1i(u.uSprite, 4);
             const blank = gl.createTexture();
@@ -979,9 +983,9 @@
 
         function layerSpec(card, layer) {
             const all = getFxs(card);
-            if (layer === 'art') return { image: card.image, fxs: all.filter(f => f.target !== 'frame'), mode: 0 };
+            if (layer === 'art') return { image: card.image, fxs: all.filter(f => f.target !== 'frame'), mode: 0, art: getArt(card) };
             const f = getFrame(card);
-            return { image: f.image, fxs: [...f.fxs, ...all.filter(x => x.target === 'frame' || x.target === 'both')], mode: 1, y0: 1 - f.height / 100, panel: f.panel ? 1 : 0, img: f.image ? 1 : 0 };
+            return { image: f.image, fxs: [...f.fxs, ...all.filter(x => x.target === 'frame' || x.target === 'both')], mode: 1, art: { zoom: 1, x: 0, y: 0 }, y0: 1 - f.height / 100, panel: f.panel ? 1 : 0, img: f.image ? 1 : 0 };
         }
 
         // layer: 'art' 铺满整张卡；'frame' 仅在底板/边框图不透明区域生效
@@ -1034,6 +1038,7 @@
                 gl.uniform2f(u.uGloss, pass === 0 ? gloss.s : 0, gloss.r);
                 gl.uniform1f(u.uMode, spec.mode);
                 gl.uniform3f(u.uFM, spec.y0 || 0, spec.panel || 0, spec.img || 0);
+                gl.uniform3f(u.uArt, spec.art.zoom, spec.art.x / 100, spec.art.y / 100);
                 gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
             });
             ctx.clearRect(0, 0, w, h);
@@ -1196,6 +1201,7 @@
 
         function ensureSlotFx(slot) {
             slot.fxs = []; // 槽位专属特效预留（如 distortion、动图动画），目前留空
+            slot.art = getArt(slot);
             delete slot.fx;
             delete slot.gloss;
             slot.frame = getFrame(slot);
@@ -1243,6 +1249,8 @@
             c.querySelector('.card').className = 'card ' + ({ N: 'n', SR: 'sr', SSR: 'ssr' }[card.rarity] || 'n');
             const art = c.querySelector('.art-img');
             if (art.getAttribute('src') !== card.image) art.src = card.image;
+            const av = getArt(card);
+            art.style.transform = `translate(${av.x}%, ${av.y}%) scale(${av.zoom})`;
 
             const f = getFrame(card);
             const panel = c.querySelector('.frame-panel');
@@ -1410,6 +1418,15 @@
 
             const xb = mkSection(panel, '✨ 槽位专属特效', false);
             xb.innerHTML = '<div style="font-size:11px;color:#666;">预留：以后在这里加入 Distortion、WebP 动图动画等槽位专属特效。镜射、彩虹、流光等加工特效请在上方“套组特效变体”里设置。</div>';
+
+            const ab = mkSection(panel, '🔍 卡面图位置与大小（蒙版/法线贴图同步）', false);
+            mkRange(ab, '缩放', slot.art, 'zoom', 0.5, 3, 0.01, () => change(0));
+            mkRange(ab, '水平偏移 %', slot.art, 'x', -100, 100, 0.5, () => change(0));
+            mkRange(ab, '垂直偏移 %', slot.art, 'y', -100, 100, 0.5, () => change(0));
+            const rst = document.createElement('button');
+            rst.className = 'mini-btn'; rst.textContent = '重置位置与大小';
+            rst.onclick = () => { Object.assign(slot.art, { zoom: 1, x: 0, y: 0 }); renderSlotEditor(index, panel); change(0); };
+            ab.appendChild(rst);
 
             const fb = mkSection(panel, '🖼 边框');
             const fr = slot.frame;
@@ -1773,6 +1790,7 @@
                         image: imageUrl,
                         desc: slot.desc,
                         fxs,
+                        art: slot.art,
                         frame,
                         text: slot.text,
                         supply: slot.supply,
