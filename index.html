@@ -123,8 +123,9 @@
         .card-face {
             position: absolute;
             inset: 0;
-            background: #1e1e24;
+            background: transparent;
             border-radius: 16px;
+            transform-style: preserve-3d;
             transition: box-shadow 0.3s ease;
             box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
             border: 2px solid rgba(255, 215, 0, 0.4);
@@ -132,22 +133,124 @@
         }
 
         .card.n .card-face { border-color: rgba(160, 160, 171, 0.6); }
-        .card.sr .card-face { border-color: rgba(64, 156, 255, 0.8); }
-        .card.ssr .card-face { border-color: rgba(255, 215, 0, 1); box-shadow: 0 0 20px rgba(255, 215, 0, 0.4); }
+        .card.sr .card-face {
+            border-color: rgba(110, 190, 255, 0.95);
+            box-shadow: 0 0 8px 2px rgba(64, 156, 255, 0.75), 0 0 22px 5px rgba(45, 132, 255, 0.4), inset 0 0 12px rgba(64, 156, 255, 0.16);
+            animation: sr-edge-glow 3s ease-in-out infinite;
+        }
+        .card.ssr .card-face {
+            border-color: rgba(208, 160, 255, 1);
+            box-shadow: 0 0 16px 3px rgba(157, 72, 255, 0.32), inset 0 0 12px rgba(176, 92, 255, 0.16);
+        }
+        .card.ssr .card-face::before, .card.ssr .card-face::after { content: ''; position: absolute; pointer-events: none; z-index: 0; }
+        @property --rainbow-angle { syntax: '<angle>'; initial-value: 0deg; inherits: false; }
+        .card.ssr .card-face::before {
+            inset: -8px;
+            border: 12px solid transparent;
+            border-radius: 24px;
+            background: conic-gradient(from var(--rainbow-angle), #ff5d75, #ffbd57, #efff72, #57f5c7, #5e9dff, #b96bff, #ff62d4, #ff5d75);
+            -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+            -webkit-mask-composite: xor;
+            mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+            mask-composite: exclude;
+            filter: blur(9px);
+            opacity: 0.42;
+            animation: ssr-rainbow-flow 10s linear infinite;
+        }
+        .card.ssr .card-face::after {
+            inset: -2px;
+            border: 3px solid transparent;
+            border-radius: 18px;
+            background: conic-gradient(from var(--rainbow-angle), #ff6680, #ffd46a, #efff8b, #62f5c7, #67a8ff, #c27aff, #ff71dc, #ff6680);
+            -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+            -webkit-mask-composite: xor;
+            mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+            mask-composite: exclude;
+            filter: blur(1px);
+            opacity: 0.9;
+            animation: ssr-rainbow-flow 8s linear infinite;
+        }
+
+        @keyframes sr-edge-glow {
+            0%, 100% { box-shadow: 0 0 7px 2px rgba(64, 156, 255, 0.62), 0 0 18px 4px rgba(45, 132, 255, 0.32), inset 0 0 10px rgba(64, 156, 255, 0.12); }
+            50% { box-shadow: 0 0 11px 3px rgba(90, 185, 255, 0.88), 0 0 27px 7px rgba(45, 132, 255, 0.52), inset 0 0 15px rgba(64, 156, 255, 0.2); }
+        }
+        @keyframes ssr-rainbow-flow { to { --rainbow-angle: 360deg; } }
+        @media (prefers-reduced-motion: reduce) {
+            .card.sr .card-face, .card.ssr .card-face, .card.ssr .card-face::before, .card.ssr .card-face::after { animation: none; }
+        }
 
         .card-content {
             position: absolute;
             inset: 0;
-            overflow: hidden;
-            background: #15151a;
+            overflow: visible;
+            background: transparent;
             border-radius: 14px;
             z-index: 1;
             pointer-events: none;
+            transform-style: preserve-3d;
         }
 
-        .card-edge { position: absolute; inset: 0; border-radius: 16px; pointer-events: none; }
+        .card-layer-window, .card-front-plane {
+            position: absolute;
+            inset: 0;
+            transform-style: preserve-3d;
+            pointer-events: none;
+        }
+        .card-layer-window {
+            overflow: clip;
+            border-radius: 14px;
+        }
+        .card-outline-window {
+            position: absolute;
+            inset: 0;
+            overflow: clip;
+            border-radius: 16px;
+            transform-style: preserve-3d;
+            pointer-events: none;
+        }
+
+        .card-edge {
+            position: absolute;
+            inset: 0;
+            box-sizing: border-box;
+            padding: 4px;
+            border-radius: 16px;
+            pointer-events: none;
+            -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+            -webkit-mask-composite: xor;
+            mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+            mask-composite: exclude;
+        }
         .card-container { cursor: zoom-in; }
-        .art-img, .frame-img {
+        .card-base {
+            position: absolute;
+            inset: 0;
+            border-radius: 14px;
+            background: transparent;
+            pointer-events: none;
+        }
+        .background-layer, .art-layer {
+            position: absolute;
+            inset: 0;
+            overflow: visible;
+            border-radius: 14px;
+            transform-origin: center;
+            transform-style: preserve-3d;
+        }
+        .background-layer { z-index: 0; pointer-events: none; }
+        .art-layer {
+            z-index: 0;
+        }
+        .art-frost {
+            position: absolute;
+            inset: 0;
+            pointer-events: none;
+            backdrop-filter: blur(var(--art-frost, 0px));
+            -webkit-backdrop-filter: blur(var(--art-frost, 0px));
+            border-radius: 14px;
+        }
+        .background-img, .art-img, .frame-img {
             position: absolute;
             inset: 0;
             width: 100%;
@@ -174,7 +277,7 @@
             display: none;
             position: fixed;
             inset: 0;
-            background: rgba(8, 8, 10, 0.88);
+            background: rgba(8, 8, 10, 0.4);
             z-index: 2000;
             flex-direction: column;
             justify-content: center;
@@ -182,9 +285,18 @@
             gap: 12px;
             cursor: zoom-out;
         }
-        #zoomOverlay .zoom-stage { cursor: default; }
+        #zoomOverlay .zoom-layout { display: flex; align-items: center; justify-content: center; gap: 18px; max-width: 96vw; max-height: 88vh; }
+        #zoomOverlay .zoom-stage { cursor: default; flex: 0 0 auto; }
         #zoomOverlay .card-container { cursor: default; }
         #zoomOverlay .zoom-hint { font-size: 12px; color: #a0a0ab; }
+        #zoomOverlay .zoom-controls { width: min(360px, 32vw); max-height: 76vh; overflow: auto; padding: 14px; background: rgba(25, 25, 32, 0.97); border: 1px solid #454554; border-radius: 8px; cursor: default; }
+        #zoomOverlay .zoom-controls h3 { margin: 0 0 10px; font-size: 14px; color: #ffd700; }
+        @media (max-width: 760px) {
+            #zoomOverlay { justify-content: flex-start; overflow-y: auto; padding: 12px 0; }
+            #zoomOverlay .zoom-layout { flex-direction: column; max-height: none; gap: 10px; }
+            #zoomOverlay .zoom-controls { width: min(92vw, 480px); max-height: 38vh; }
+            #zoomOverlay .zoom-hint { margin: 0 12px; }
+        }
 
         details.fx-sec { border-top: 1px dashed #3f3f4e; padding-top: 8px; min-width: 0; }
         details.fx-sec > summary { cursor: pointer; font-size: 12px; font-weight: bold; color: #ffd700; }
@@ -192,6 +304,8 @@
         .input-group input[type=color] { padding: 0; height: 28px; }
         .mini-btn { background: #3a3a4c; color: #fff; border: none; border-radius: 6px; padding: 4px 8px; font-size: 11px; cursor: pointer; align-self: flex-start; }
         .check-row { display: flex; gap: 6px; align-items: center; font-size: 12px; color: #a0a0ab; }
+        .asset-row { display: flex; align-items: center; gap: 8px; min-width: 0; }
+        .asset-row input[type=file] { flex: 1; min-width: 0; }
 
         .card-shine {
             position: absolute;
@@ -205,8 +319,9 @@
         @supports (mix-blend-mode: plus-lighter) {
             .card-shine { mix-blend-mode: plus-lighter; }
         }
-        .fx-layer { border: 1px solid #3f3f4e; border-radius: 8px; padding: 8px; min-width: 0; }
-        .fx-layer-head { display: flex; justify-content: space-between; align-items: center; font-size: 11px; color: #ffd700; }
+        details.fx-layer { border: 1px solid #3f3f4e; border-radius: 6px; padding: 8px; min-width: 0; }
+        .fx-layer > summary { display: flex; justify-content: space-between; align-items: center; gap: 8px; cursor: pointer; font-size: 11px; color: #ffd700; }
+        .fx-layer > .fx-sec-body { padding-top: 8px; }
         .finish-panel { background: #20202a; border: 1px solid #3a3a4c; border-radius: 12px; padding: 16px; display: flex; flex-direction: column; gap: 12px; }
         .finish-panel .template-selector { flex-wrap: wrap; }
         #finishList { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 440px), 1fr)); gap: 14px; }
@@ -451,7 +566,10 @@
 
     <!-- 卡片放大查看 -->
     <div id="zoomOverlay" onclick="if (event.target === this || event.target.classList.contains('zoom-hint')) closeZoom()">
-        <div class="zoom-stage"></div>
+        <div class="zoom-layout">
+            <div class="zoom-stage"></div>
+            <div class="zoom-controls"></div>
+        </div>
         <p class="zoom-hint">移动鼠标查看反光与特效 · 点击空白处或按 Esc 关闭</p>
     </div>
 
@@ -655,7 +773,7 @@
                     { label: '色相偏移', min: 0, max: 1, step: 0.01, def: 0 },
                     { label: '对比度', min: 0.5, max: 4, step: 0.05, def: 1.6 },
                     { label: '饱和度', min: 0, max: 1, step: 0.01, def: 0.8 },
-                    { label: '内置纹样（无图案贴图时）', type: 'select', options: ['菱格', '斜纹', '圆点', '六边形', '青海波（鱼鳞）', '波浪', '十字星', '同心圆', '雾纹', '编织', '蜂窝点', '嵌套菱形', '雕花波纹', '四瓣星'], def: 0 },
+                    { label: '内置纹样（无图案贴图时）', type: 'select', options: ['菱格', '斜纹', '圆点', '六边形', '青海波（鱼鳞）', '波浪', '十字星', '同心圆', '雾纹', '编织', '蜂窝点', '嵌套菱形', '雕花波纹', '四瓣星', '吉约雕纹（Guilloché）', '丝绸波纹', '棱镜网格', '日轮刻线'], def: 0 },
                     { label: '反射光强弱对比', min: 0, max: 3, step: 0.05, def: 1.2 },
                     { label: '光源高度', min: 0.2, max: 2, step: 0.01, def: 0.8 },
                     { label: '反射光集中度', min: 4, max: 120, step: 1, def: 30 },
@@ -693,8 +811,10 @@
                 { name: '星河', rate: 1, maxFx: 3, fxs: ['galaxy', 'foil', 'sweep'] }
             ] }
         };
-        const cloneFinishes = key => FINISH_TEMPLATES[key].list.map((f, i) => ({ id: 'f' + i, name: f.name, rate: f.rate, maxFx: f.maxFx, gloss: { s: 0.35, r: 0.5 }, fxs: f.fxs.map(t => newFx(t)) }));
-        const getPackFinishes = pack => (pack.finishes && pack.finishes.length) ? pack.finishes : [{ id: 'f0', name: '普通', rate: 100, fxs: [] }];
+        const cloneFinishes = key => FINISH_TEMPLATES[key].list.map((f, i) => ({ id: 'f' + i, name: f.name, rate: f.rate, maxFx: f.maxFx, gloss: { s: 0.35, r: 0.5, frost: 0 }, fxs: f.fxs.map(t => newFx(t)) }));
+        const getPackFinishes = pack => (pack.finishes && pack.finishes.length)
+            ? pack.finishes.map(fin => ({ ...fin, maxFx: Number.isInteger(fin.maxFx) ? fin.maxFx : (fin.fxs && fin.fxs.length ? fin.fxs.length : MAX_LAYERS) }))
+            : [{ id: 'f0', name: '普通', rate: 100, maxFx: MAX_LAYERS, fxs: [] }];
 
         const FONTS = [
             { k: 'sans', name: '默认', css: 'system-ui, "Microsoft YaHei", sans-serif' },
@@ -715,8 +835,9 @@
             desc: { x: 5, y: 79, w: 90, size: 4.4, color: '#c8c8d4', font: 'sans', bold: false, align: 'left' }
         };
         const TEXT_LABEL = { tag: '稀有度标签', name: '卡片名称', desc: '卡片描述' };
-        const getGloss = c => ({ s: 0.35, r: 0.5, ...(c.gloss || {}) });
-        const getArt = c => ({ zoom: 1, x: 0, y: 0, ...(c.art || {}) });
+        const getGloss = c => ({ s: 0.35, r: 0.5, frost: 0, ...(c.gloss || {}) });
+        const getArt = c => ({ zoom: 1, x: 0, y: 0, depth: 0, ...(c.art || {}) });
+        const getBackground = c => ({ image: '', zoom: 1, x: 0, y: 0, depth: 0, ...(c.background || {}) });
         const getFrame = c => {
             const f = c.frame || {};
             return { color: FRAME_COLOR[c.rarity] || '#2b2b36', opacity: 1, height: 34, panel: true, image: '', ...f, fxs: getFxs(f) };
@@ -744,6 +865,9 @@
         vec3 hsv(float h, float s, float v){
             vec3 k = clamp(abs(mod(h*6.0+vec3(0.0,4.0,2.0),6.0)-3.0)-1.0,0.0,1.0);
             return v*mix(vec3(1.0),k,s);
+        }
+        vec3 thinFilm(float phase){
+            return 0.5+0.5*cos(6.2831853*(phase+vec3(0.0,0.3333,0.6667)));
         }
         float hash21(vec2 p){ p = fract(p*vec2(123.34,456.21)); p += dot(p,p+45.32); return fract(p.x*p.y); }
         float vnoise(vec2 p){
@@ -789,6 +913,36 @@
             if (t < 10.5) return 1.0-smoothstep(0.12, 0.2, length(hexLocal(pu*6.0)));
             if (t < 11.5) { vec2 f = fract(pu*3.0)-0.5; return 0.5+0.5*cos((abs(f.x)+abs(f.y))*36.0); }
             if (t < 12.5) { float w = sin(12.566*pu.x)+sin(12.566*pu.y); return 0.5+0.5*sin(w*6.0); }
+            if (t < 13.5) {
+                vec2 f = fract(pu*5.0)-0.5;
+                float rr = 0.1+0.32*pow(abs(cos(2.0*atan(f.y, f.x+1e-5))), 1.5);
+                return 1.0-smoothstep(rr*0.6, rr, length(f));
+            }
+            if (t < 14.5) {
+                float a = pu.x*6.2831853, b = pu.y*6.2831853;
+                float g1 = sin(a*3.0 + sin(b*2.0)*0.62 + sin(b*5.0+a)*0.16);
+                float g2 = sin(b*3.0 + sin(a*2.0)*0.62 - sin(a*5.0-b)*0.16);
+                return 0.5+0.25*g1+0.25*g2;
+            }
+            if (t < 15.5) {
+                float a = pu.x*6.2831853, b = pu.y*6.2831853;
+                float warp = sin(a*2.0)*0.28 + sin(a*5.0+b)*0.12;
+                float thread = sin((b+warp)*18.0);
+                float crossThread = sin((a+sin(b*3.0)*0.08)*18.0);
+                return 0.5+0.25*thread+0.25*crossThread;
+            }
+            if (t < 16.5) {
+                float a = (pu.x+pu.y)*6.2831853*3.0;
+                float b = (pu.x-pu.y)*6.2831853*3.0;
+                return 0.5+0.25*sin(a+0.22*sin(b*2.0))+0.25*sin(b-0.22*sin(a*2.0));
+            }
+            if (t < 17.5) {
+                vec2 f = fract(pu*4.0)-0.5;
+                float r = length(f), a = atan(f.y, f.x);
+                float rays = pow(0.5+0.5*cos(a*24.0), 5.0);
+                float rings = 0.5+0.5*cos(r*150.0 + 3.0*sin(a*6.0));
+                return 0.5+0.32*(rays-0.5)+0.18*(rings-0.5);
+            }
             vec2 f = fract(pu*5.0)-0.5;
             float rr = 0.1+0.32*pow(abs(cos(2.0*atan(f.y, f.x+1e-5))), 1.5);
             return 1.0-smoothstep(rr*0.6, rr, length(f));
@@ -811,11 +965,17 @@
 
             if (abs(uEffect-1.0) < 0.5) {
                 float ha = radians(uP[6]); vec2 hd = vec2(cos(ha), sin(ha));
-                float t = (dot((uv-0.5)*asp, hd) - dot(d, hd)*abs(uP[7]))*uP[1] + uP[2];
-                float band = pow(0.5+0.5*sin(t*12.566+1.0), uP[4]);
-                col = hsv(fract(t), uP[3], 1.0);
+                float t = (dot((uv-0.5)*asp, hd) + dot(d, hd)*abs(uP[7]))*uP[1] + uP[2];
+                float phase = t;
+                float bandA = pow(0.5+0.5*cos(phase*12.566), uP[4]);
+                float bandB = pow(0.5+0.5*cos((phase*1.37+0.31)*12.566), max(0.5, uP[4]*0.72));
+                float bandC = pow(0.5+0.5*cos((phase*2.11-0.18)*12.566), max(0.5, uP[4]*0.55));
+                vec3 spectrumA = thinFilm(phase*0.62);
+                vec3 spectrumB = thinFilm(phase*0.91+0.27);
+                col = mix(spectrumA, spectrumB, 0.5+0.5*sin(phase*6.283));
+                col = mix(vec3(dot(col, vec3(0.3333))), col, uP[3]);
                 float glow = smoothstep(uP[5], 0.0, distance(p, m*asp));
-                a = uP[0]*(0.25+0.75*band)*(0.35+0.65*glow)*(0.5+lum)*mask;
+                a = uP[0]*(0.12+0.38*bandA+0.28*bandB+0.18*bandC)*(0.3+0.7*glow)*(0.45+lum*0.7)*mask;
             } else if (abs(uEffect-2.0) < 0.5) {
                 vec3 acc = vec3(0.0);
                 for (int i=0;i<3;i++){
@@ -881,13 +1041,13 @@
                 vec3 L = normalize(vec3((m.x-uv.x)*uBoxAsp, -(m.y-uv.y), uP[4]));
                 vec3 H = normalize(L+vec3(0.0,0.0,1.0));
                 float spec = pow(max(dot(n,H),0.0), uP[1]);
-                vec3 film = hsv(fract(uP[3] + dot(n.xy, vec2(1.2,0.9))*1.5 + dot(d, vec2(0.6,0.4))), 0.85, 1.0);
+                vec3 film = thinFilm(uP[3] + dot(n.xy, vec2(1.2,0.9))*0.75 + dot(d, vec2(0.6,0.4))*0.35);
                 col = mix(vec3(1.0), film, clamp(uP[2],0.0,1.0));
                 float diff = pow(max(dot(n,L),0.0), 2.0);
                 a = clamp(spec*1.5 + uP[2]*0.4*diff*(0.3+lum), 0.0, 1.0)*uP[0]*mask;
             } else if (abs(uEffect-5.0) < 0.5) {
                 float ang = radians(uP[2]); vec2 dir = vec2(cos(ang), sin(ang));
-                float x = dot((uv-0.5)*asp, dir) - dot(d, dir)*abs(uP[6]);
+                float x = dot((uv-0.5)*asp, dir) + dot(d, dir)*abs(uP[6]);
                 float sp = uP[5];
                 x -= sp*floor(x/sp+0.5);
                 float w = uP[1];
@@ -907,17 +1067,27 @@
                 float spec = pow(max(dot(n,H),0.0), uP[9]);
                 float broad = pow(max(H.z,0.0), 12.0);
                 float shine = 0.3 + uP[7]*(1.4*spec + 0.5*broad);
-                col = hsv(fract(uP[3] + v*0.5 + dot(d, vec2(1.2,0.8))*uP[2]*1.6 + dot((uv-0.5)*asp, vec2(cos(radians(uP[11])), sin(radians(uP[11]))))*uP[10]), uP[5], 1.0);
+                float phase = uP[3] + v*0.5 + dot(d, vec2(1.2,0.8))*uP[2]*1.6 + dot((uv-0.5)*asp, vec2(cos(radians(uP[11])), sin(radians(uP[11]))))*uP[10];
+                vec3 spectrum = thinFilm(phase);
+                col = mix(vec3(dot(spectrum, vec3(0.3333))), spectrum, uP[5]);
                 a = v*(0.4+lum*0.8)*shine*uP[0]*mask;
             }
+            float baseAlpha = uHas.x > 0.5 ? texture2D(uBase, cover(artUv(uv),uAsp.x)).a : 0.0;
             float fm = 1.0;
             if (uMode > 0.5) {
-                float ba = uHas.x > 0.5 ? texture2D(uBase, cover(uv,uAsp.x)).a : 0.0;
-                fm = max(uFM.y*step(uFM.x, uv.y), uFM.z*ba);
-            }
+                fm = max(uFM.y*step(uFM.x, uv.y), uFM.z*baseAlpha);
+            } else if (uHas.x > 0.5) fm = baseAlpha;
             vec3 Lg = normalize(vec3((m.x-uv.x)*uBoxAsp, -(m.y-uv.y), 0.8));
-            float shin = mix(3.0, 160.0, uGloss.y*uGloss.y);
-            float g = uGloss.x*pow(max(normalize(Lg+vec3(0.0,0.0,1.0)).z, 0.0), shin)*mix(0.6,1.7,uGloss.y)*mix(0.55,1.0,uFade)*fm;
+            vec3 H = normalize(Lg+vec3(0.0,0.0,1.0));
+            float shin = mix(24.0, 180.0, uGloss.y*uGloss.y);
+            float ndh = max(H.z, 0.0);
+            float broad = pow(ndh, mix(4.0, 14.0, uGloss.y));
+            float sharp = pow(ndh, shin);
+            float edgeDist = min(min(uv.x, 1.0-uv.x), min(uv.y, 1.0-uv.y));
+            float rim = pow(1.0-smoothstep(0.0, 0.16, edgeDist), 2.0);
+            float broadEnergy = mix(0.018, 0.12, uGloss.y);
+            float sharpEnergy = mix(0.02, 0.8, uGloss.y);
+            float g = uGloss.x*(broadEnergy*broad + sharpEnergy*sharp + 0.06*rim*broad*uGloss.y)*mix(0.55,1.0,uFade)*fm;
             a = clamp(a, 0.0, 1.0)*uFade*fm;
             gl_FragColor = vec4(col*a + vec3(g), clamp(a+g, 0.0, 1.0));
         }`;
@@ -983,7 +1153,8 @@
 
         function layerSpec(card, layer) {
             const all = getFxs(card);
-            if (layer === 'art') return { image: card.image, fxs: all.filter(f => f.target !== 'frame'), mode: 0, art: getArt(card) };
+            if (layer === 'art') return { image: card.image, fxs: all.filter(f => f.target !== 'frame' && f.target !== 'background'), mode: 0, art: getArt(card) };
+            if (layer === 'background') return { image: getBackground(card).image, fxs: all.filter(f => f.target === 'background' || f.target === 'artBackground'), mode: 0, art: getBackground(card) };
             const f = getFrame(card);
             return { image: f.image, fxs: [...f.fxs, ...all.filter(x => x.target === 'frame' || x.target === 'both')], mode: 1, art: { zoom: 1, x: 0, y: 0 }, y0: 1 - f.height / 100, panel: f.panel ? 1 : 0, img: f.image ? 1 : 0 };
         }
@@ -992,12 +1163,13 @@
         function renderFx(cv, card, layer, mx, my, fade) {
             const ctx = cv.getContext('2d');
             const spec = layerSpec(card, layer);
-            const gloss = getGloss(card);
+            const gloss = card.gloss || getGloss(card);
             const fxs = spec.fxs.filter(f => FX[f.type].id);
             const noFrame = layer === 'frame' && !spec.panel && !spec.img;
-            if (!fxGL || noFrame || (!fxs.length && gloss.s <= 0)) { ctx.clearRect(0, 0, cv.width, cv.height); return; }
+            const noBackground = layer === 'background' && !spec.image;
+            if (!fxGL || noFrame || noBackground || (!fxs.length && gloss.s <= 0)) { ctx.clearRect(0, 0, cv.width, cv.height); return; }
             const { gl, canvas, u, blank } = fxGL;
-            const dpr = Math.min(window.devicePixelRatio || 1, 2);
+            const dpr = Math.min(Math.max(window.devicePixelRatio || 1, 1.5), 2);
             const w = Math.max(1, Math.round(cv.clientWidth * dpr)), h = Math.max(1, Math.round(cv.clientHeight * dpr));
             if (cv.width !== w || cv.height !== h) { cv.width = w; cv.height = h; }
             if (canvas.width !== w || canvas.height !== h) { canvas.width = w; canvas.height = h; }
@@ -1202,6 +1374,8 @@
         function ensureSlotFx(slot) {
             slot.fxs = []; // 槽位专属特效预留（如 distortion、动图动画），目前留空
             slot.art = getArt(slot);
+            slot.background = { ...getBackground(slot), ...(slot.background || {}) };
+            slot.background.file = null;
             delete slot.fx;
             delete slot.gloss;
             slot.frame = getFrame(slot);
@@ -1224,7 +1398,7 @@
             c.style.width = width + 'px';
             c.style.height = Math.round(width * 320 / 220) + 'px';
             // 边缘厚度：在卡面后方堆叠若干层，倾斜时可见
-            const th = Math.max(3, width * 0.02), N = 8;
+            const th = Math.max(3, width * 0.04), N = 8;
             let edges = '';
             for (let i = 1; i <= N; i++) {
                 edges += `<div class="card-edge" style="transform: translateZ(${(-th * i / N).toFixed(2)}px); background: hsl(240, 8%, ${78 - i * 3}%);"></div>`;
@@ -1233,10 +1407,18 @@
                 <div class="card" style="width: 100%; height: 100%;">
                     ${edges}
                     <div class="card-face">
+                    <div class="card-base" style="transform: translateZ(${(-th - 0.5).toFixed(2)}px);"></div>
                     <div class="card-content">
-                        <img class="art-img" alt=""><canvas class="card-shine art-fx"></canvas>
+                        <div class="art-frost"></div>
+                        <div class="card-layer-window">
+                            <div class="background-layer"><img class="background-img" alt=""><canvas class="card-shine background-fx"></canvas></div>
+                            <div class="art-layer"><img class="art-img" alt=""><canvas class="card-shine art-fx"></canvas></div>
+                        </div>
+                        <div class="card-front-plane"></div>
+                        <div class="card-outline-window">
                         <div class="frame-panel"></div><img class="frame-img" alt=""><canvas class="card-shine frame-fx"></canvas>
                         <div class="tx" data-t="tag"></div><div class="tx" data-t="name"></div><div class="tx" data-t="desc"></div>
+                        </div>
                     </div>
                     </div>
                 </div>`;
@@ -1246,24 +1428,65 @@
         }
 
         // 卡面图按原始比例铺满卡面（cover）后保留完整尺寸，平移/缩放时不再被预先裁掉边缘
-        function layoutArt(art, card) {
-            const av = getArt(card);
+        function layoutArt(art, card, av = getArt(card), target = art) {
             const ca = 220 / 320;
             const ia = art.naturalWidth && art.naturalHeight ? art.naturalWidth / art.naturalHeight : ca;
             let w = 100, h = 100;
             if (ia > ca) w = ia / ca * 100; else h = ca / ia * 100;
-            Object.assign(art.style, {
+            const artStyles = {
                 width: w + '%', height: h + '%', left: (100 - w) / 2 + '%', top: (100 - h) / 2 + '%', objectFit: 'fill',
                 transform: `translate(${av.x}cqw, ${(av.y * 320 / 220).toFixed(3)}cqw) scale(${av.zoom})`
-            });
+            };
+            Object.assign(target.style, artStyles);
         }
 
         function updateCardView(c, card) {
             c.querySelector('.card').className = 'card ' + ({ N: 'n', SR: 'sr', SSR: 'ssr' }[card.rarity] || 'n');
+            const background = getBackground(card);
+            const backgroundLayer = c.querySelector('.background-layer');
+            const backgroundImg = c.querySelector('.background-img');
+            if (background.image) {
+                if (backgroundImg.getAttribute('src') !== background.image) {
+                    backgroundImg.src = background.image;
+                    backgroundImg.onload = () => layoutArt(backgroundImg, card, background);
+                }
+                backgroundLayer.style.display = 'block';
+                layoutArt(backgroundImg, card, background);
+            } else {
+                backgroundImg.removeAttribute('src');
+                backgroundLayer.style.display = 'none';
+            }
             const art = c.querySelector('.art-img');
-            if (art.getAttribute('src') !== card.image) art.src = card.image;
-            art.onload = () => layoutArt(art, card);
-            layoutArt(art, card);
+            const artFrost = c.querySelector('.art-frost');
+            const layoutMainArt = () => {
+                layoutArt(art, card);
+                artFrost.style.setProperty('--art-frost', `${getGloss(card).frost}px`);
+            };
+            if (art.getAttribute('src') !== (card.image || null)) {
+                if (card.image) art.src = card.image;
+                else art.removeAttribute('src');
+            }
+            art.onload = layoutMainArt;
+            layoutMainArt();
+            const artLayer = c.querySelector('.art-layer');
+            const artDepthRatio = Math.max(-2, Math.min(2, (Number(getArt(card).depth) || 0) / 100));
+            const backgroundDepthRatio = Math.max(-2, Math.min(2, (Number(background.depth) || 0) / 100));
+            const cardThickness = Math.max(3, (Number.parseFloat(c.style.width) || c.clientWidth) * 0.04);
+            const artScale = 1 + Math.abs(artDepthRatio) * 0.18;
+            const backgroundScale = 1.03 + Math.abs(backgroundDepthRatio) * 0.18;
+            const artZ = -cardThickness * (artDepthRatio < 0 ? artDepthRatio : 0.05 + artDepthRatio);
+            const backgroundZ = -cardThickness * (backgroundDepthRatio < 0 ? backgroundDepthRatio : 0.05 + backgroundDepthRatio);
+            artFrost.style.transform = `translateZ(${Math.min(artZ, backgroundZ) - 0.5}px)`;
+            artLayer.style.transform = `translateZ(${artZ}px) scale(${artScale})`;
+            backgroundLayer.style.transform = `translateZ(${backgroundZ}px) scale(${backgroundScale})`;
+            const frontPlane = c.querySelector('.card-front-plane');
+            const layerWindow = c.querySelector('.card-layer-window');
+            const artPlane = artDepthRatio < 0 ? frontPlane : layerWindow;
+            const backgroundPlane = backgroundDepthRatio < 0 ? frontPlane : layerWindow;
+            if (artLayer.parentElement !== artPlane) artPlane.appendChild(artLayer);
+            if (backgroundLayer.parentElement !== backgroundPlane) backgroundPlane.prepend(backgroundLayer);
+            artLayer.style.clipPath = '';
+            backgroundLayer.style.clipPath = '';
 
             const f = getFrame(card);
             const panel = c.querySelector('.frame-panel');
@@ -1300,20 +1523,48 @@
         function openZoom(card) {
             const ov = document.getElementById('zoomOverlay');
             const stage = ov.querySelector('.zoom-stage');
+            const controls = ov.querySelector('.zoom-controls');
             stage.innerHTML = '';
-            const w = Math.floor(Math.min(window.innerWidth * 0.9, window.innerHeight * 0.82 * 220 / 320, 560));
-            stage.appendChild(buildCard(card, w, { zoom: false }));
+            controls.innerHTML = '';
+            const mobile = window.innerWidth <= 760;
+            const w = Math.floor(mobile
+                ? Math.min(window.innerWidth * 0.88, window.innerHeight * 0.48 * 220 / 320, 420)
+                : Math.min(window.innerWidth * 0.42, window.innerHeight * 0.78 * 220 / 320, 460));
+            const zoomCard = buildCard(card, w, { zoom: false });
+            stage.appendChild(zoomCard);
+            card.fxs = getFxs(card);
+            card.gloss = getGloss(card);
+            controls.innerHTML = '<h3>预览参数</h3><div class="zoom-gloss"></div><div class="zoom-fx-stack"></div>';
+            const pulse = ms => zoomCard.fxBinding.pulse(ms);
+            const glossPanel = controls.querySelector('.zoom-gloss');
+            const gloss = card.gloss || getGloss(card);
+            const updateGloss = () => { card.gloss = gloss; updateCardView(zoomCard, card); pulse(1200); };
+            mkRange(glossPanel, '反光强度', gloss, 's', 0, 1, 0.01, updateGloss);
+            mkRange(glossPanel, '表面光滑度（粗糙 → 光滑）', gloss, 'r', 0, 1, 0.01, updateGloss);
+            mkRange(glossPanel, '透明区磨砂度', gloss, 'frost', 0, 24, 0.5, updateGloss);
+            const fxLimit = Number.isInteger(card.fxLimit) ? card.fxLimit : (card.finishName ? getFxs(card).length : MAX_LAYERS);
+            buildFxStack(controls.querySelector('.zoom-fx-stack'), card, pulse, fxLimit, true);
             ov.style.display = 'flex';
         }
         function closeZoom() {
             const ov = document.getElementById('zoomOverlay');
             ov.style.display = 'none';
             ov.querySelector('.zoom-stage').innerHTML = '';
+            ov.querySelector('.zoom-controls').innerHTML = '';
         }
         document.addEventListener('keydown', e => { if (e.key === 'Escape') closeZoom(); });
 
         // 槽位预览卡 = 槽位数据 + 所选变体（特效层与整体反光）
-        const composeFinishCard = (base, fin) => ({ ...base, fxs: [...getFxs(base), ...fin.fxs], gloss: fin.gloss, finishName: fin.fxs.length ? fin.name : '' });
+        const composeFinishCard = (base, fin) => {
+            const baseFxs = getFxs(base), finishFxs = getFxs(fin);
+            return {
+                ...base,
+                fxs: [...baseFxs, ...finishFxs],
+                gloss: fin.gloss,
+                finishName: finishFxs.length ? fin.name : '',
+                fxLimit: baseFxs.length + (Number.isInteger(fin.maxFx) ? fin.maxFx : finishFxs.length)
+            };
+        };
         function composeSlotPreview(slot) {
             const fin = currentFinishes[Math.min(slot.previewFin || 0, currentFinishes.length - 1)];
             return composeFinishCard(slot, fin);
@@ -1347,7 +1598,17 @@
                             </div>
                             <div class="input-group">
                                 <label>卡面图片上传</label>
-                                <input type="file" accept="image/*" onchange="handleSlotImageSelect(${index}, this)">
+                                <div class="asset-row">
+                                    <input type="file" accept="image/*" onchange="handleSlotImageSelect(${index}, this)">
+                                    <button type="button" class="mini-btn" onclick="clearSlotImage(${index}, this.parentElement.querySelector('input[type=file]'))">移除图片</button>
+                                </div>
+                            </div>
+                            <div class="input-group">
+                                <label>背景图片（可选）</label>
+                                <div class="asset-row">
+                                    <input type="file" accept="image/*" onchange="handleSlotBackgroundSelect(${index}, this)">
+                                    <button type="button" class="mini-btn" onclick="clearSlotBackground(${index}, this.parentElement.querySelector('input[type=file]'))">移除背景</button>
+                                </div>
                             </div>
                             <div class="input-group">
                                 <label>卡片描述</label>
@@ -1434,11 +1695,16 @@
 
             const ab = mkSection(panel, '🔍 卡面图位置与大小（蒙版/法线贴图同步）', false);
             mkRange(ab, '缩放', slot.art, 'zoom', 0.5, 3, 0.01, () => change(0));
+            mkRange(ab, '主图深度（负值浮起）', slot.art, 'depth', -200, 200, 1, () => change(0));
             mkRange(ab, '水平偏移 %', slot.art, 'x', -100, 100, 0.5, () => change(0));
             mkRange(ab, '垂直偏移 %', slot.art, 'y', -100, 100, 0.5, () => change(0));
+            mkRange(ab, '背景图缩放', slot.background, 'zoom', 0.5, 3, 0.01, () => change(0));
+            mkRange(ab, '背景图水平偏移 %', slot.background, 'x', -100, 100, 0.5, () => change(0));
+            mkRange(ab, '背景图垂直偏移 %', slot.background, 'y', -100, 100, 0.5, () => change(0));
+            mkRange(ab, '背景图深度（负值浮起）', slot.background, 'depth', -200, 200, 1, () => change(0));
             const rst = document.createElement('button');
             rst.className = 'mini-btn'; rst.textContent = '重置位置与大小';
-            rst.onclick = () => { Object.assign(slot.art, { zoom: 1, x: 0, y: 0 }); renderSlotEditor(index, panel); change(0); };
+            rst.onclick = () => { Object.assign(slot.art, { zoom: 1, x: 0, y: 0, depth: 0 }); Object.assign(slot.background, { zoom: 1, x: 0, y: 0, depth: 0 }); renderSlotEditor(index, panel); change(0); };
             ab.appendChild(rst);
 
             const fb = mkSection(panel, '🖼 边框');
@@ -1506,7 +1772,7 @@
             selGroup.appendChild(sel);
             panel.appendChild(selGroup);
             if (showTarget) {
-                mkSelect(panel, '作用范围', [['art', '卡面'], ['frame', '边框'], ['both', '卡面+边框']], layer.target || 'art', v => { layer.target = v; pulse(1500); });
+                mkSelect(panel, '作用范围', [['art', '主图'], ['background', '背景图'], ['artBackground', '主图+背景图'], ['frame', '边框'], ['both', '主图+边框']], layer.target || 'art', v => { layer.target = v; pulse(1500); });
             }
 
             def.tex.forEach(t => {
@@ -1520,6 +1786,19 @@
                 lb.appendChild(status);
                 const inp = document.createElement('input');
                 inp.type = 'file'; inp.accept = 'image/*';
+                const row = document.createElement('div');
+                row.className = 'asset-row';
+                const clear = document.createElement('button');
+                clear.type = 'button'; clear.className = 'mini-btn'; clear.textContent = '移除贴图';
+                clear.hidden = !fx.tex[t.k] && !(layer.files && layer.files[t.k]);
+                clear.onclick = () => {
+                    delete fx.tex[t.k];
+                    if (layer.files) delete layer.files[t.k];
+                    inp.value = '';
+                    status.textContent = '';
+                    clear.hidden = true;
+                    pulse(1000);
+                };
                 inp.onchange = () => {
                     const file = inp.files[0];
                     if (!file) return;
@@ -1528,11 +1807,13 @@
                         fx.tex[t.k] = ev.target.result;
                         layer.files[t.k] = file;
                         status.textContent = ' ✔ 已选择';
+                        clear.hidden = false;
                         pulse(2000);
                     };
                     reader.readAsDataURL(file);
                 };
-                g.appendChild(lb); g.appendChild(inp);
+                row.appendChild(inp); row.appendChild(clear);
+                g.appendChild(lb); g.appendChild(row);
                 panel.appendChild(g);
             });
 
@@ -1567,14 +1848,14 @@
                 panel.appendChild(hint);
             }
             owner.fxs.forEach((layer, i) => {
-                const box = document.createElement('div');
+                const box = document.createElement('details');
                 box.className = 'fx-layer';
-                const head = document.createElement('div');
-                head.className = 'fx-layer-head';
-                head.innerHTML = `<span>特效层 ${i + 1} / ${max}</span>`;
+                box.open = true;
+                const head = document.createElement('summary');
+                head.innerHTML = `<span>特效层 ${i + 1} / ${max} · ${esc(FX[layer.type].name)}</span>`;
                 const del = document.createElement('button');
                 del.className = 'mini-btn'; del.textContent = '删除';
-                del.onclick = () => { owner.fxs.splice(i, 1); buildFxStack(panel, owner, onChange, max, showTarget); onChange(1500); };
+                del.onclick = e => { e.preventDefault(); e.stopPropagation(); owner.fxs.splice(i, 1); buildFxStack(panel, owner, onChange, max, showTarget); onChange(1500); };
                 head.appendChild(del);
                 box.appendChild(head);
                 const body = document.createElement('div');
@@ -1635,6 +1916,7 @@
                 fields.appendChild(pct);
                 mkRange(fields, '反光强度', fin.gloss, 's', 0, 1, 0.01, () => change(1500));
                 mkRange(fields, '表面光滑度（粗糙 → 光滑）', fin.gloss, 'r', 0, 1, 0.01, () => change(1500));
+                mkRange(fields, '透明区磨砂度', fin.gloss, 'frost', 0, 24, 0.5, () => change(1500));
                 const sec = mkSection(box, `✨ 变体特效层（最多 ${fin.maxFx} 层）`, false);
                 buildFxStack(sec, fin, change, fin.maxFx, true);
                 list.appendChild(box);
@@ -1666,39 +1948,87 @@
             }
         }
 
+        function handleSlotBackgroundSelect(index, inputElement) {
+            const file = inputElement.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = ev => {
+                currentDraftSlots[index].background.file = file;
+                currentDraftSlots[index].background.image = ev.target.result;
+                refreshSlot(index, 0);
+            };
+            reader.readAsDataURL(file);
+        }
+
+        function clearSlotBackground(index, inputElement) {
+            currentDraftSlots[index].background.file = null;
+            currentDraftSlots[index].background.image = '';
+            inputElement.value = '';
+            refreshSlot(index, 0);
+        }
+
+        function clearSlotImage(index, inputElement) {
+            currentDraftSlots[index].file = null;
+            currentDraftSlots[index].image = '';
+            inputElement.value = '';
+            refreshSlot(index, 0);
+        }
+
         // 返回 { pulse(ms), redraw() }：无鼠标悬停时 pulse 也能自动演示特效；静止时仍绘制基础反光
         function bindCard3D(container, card, opts = {}) {
             const el = container.querySelector('.card');
+            const artLayer = container.querySelector('.art-layer');
+            const backgroundLayer = container.querySelector('.background-layer');
             const cvArt = container.querySelector('.art-fx');
+            const cvBackground = container.querySelector('.background-fx');
             const cvFrame = container.querySelector('.frame-fx');
             const REST_X = 0.3, REST_Y = 0.25;
-            const st = { hover: false, tx: REST_X, ty: REST_Y, mx: REST_X, my: REST_Y, rx: 0, ry: 0, fade: 0, raf: 0, hold: 0 };
+            const st = { hover: false, tx: REST_X, ty: REST_Y, mx: REST_X, my: REST_Y, px: 0, py: 0, bpx: 0, bpy: 0, rx: 0, ry: 0, fade: 0, raf: 0, hold: 0 };
+            const hasPreview = () => getFxs(card).some(f => FX[f.type] && FX[f.type].id) || getFrame(card).fxs.some(f => FX[f.type] && FX[f.type].id) || !!(card.gloss && card.gloss.s > 0);
 
             const draw = fade => {
                 renderFx(cvArt, card, 'art', st.mx, st.my, fade);
+                renderFx(cvBackground, card, 'background', st.mx, st.my, fade);
                 renderFx(cvFrame, card, 'frame', st.mx, st.my, fade);
             };
 
             const frame = () => {
                 const now = performance.now();
                 const held = now < st.hold;
-                const on = st.hover || held;
+                const preview = !st.hover && hasPreview();
+                const on = st.hover || held || preview;
                 let tx = st.tx, ty = st.ty;
                 if (!st.hover) {
-                    if (held) { const t = now / 500; tx = 0.5 + 0.32 * Math.cos(t); ty = 0.5 + 0.32 * Math.sin(t * 1.3); }
+                    if (held || preview) { const t = now / (held ? 500 : 2100); tx = 0.5 + 0.32 * Math.cos(t); ty = 0.5 + 0.32 * Math.sin(t * 1.3); }
                     else { tx = REST_X; ty = REST_Y; }
                 }
                 st.mx += (tx - st.mx) * 0.25;
                 st.my += (ty - st.my) * 0.25;
-                st.fade += ((on ? 1 : 0) - st.fade) * 0.15;
+                const artDepthRatio = Math.max(-2, Math.min(2, (Number(getArt(card).depth) || 0) / 100));
+                const backgroundDepthRatio = Math.max(-2, Math.min(2, (Number(getBackground(card).depth) || 0) / 100));
+                const parallaxRange = container.clientWidth * 0.08;
+                const pxTarget = st.hover ? (st.mx - 0.5) * 2 * parallaxRange * artDepthRatio : 0;
+                const pyTarget = st.hover ? (st.my - 0.5) * 2 * parallaxRange * artDepthRatio : 0;
+                const bpxTarget = st.hover ? (st.mx - 0.5) * 2 * parallaxRange * backgroundDepthRatio : 0;
+                const bpyTarget = st.hover ? (st.my - 0.5) * 2 * parallaxRange * backgroundDepthRatio : 0;
+                st.px += (pxTarget - st.px) * 0.25;
+                st.py += (pyTarget - st.py) * 0.25;
+                st.bpx += (bpxTarget - st.bpx) * 0.25;
+                st.bpy += (bpyTarget - st.bpy) * 0.25;
+                artLayer.style.translate = `${st.px.toFixed(2)}px ${st.py.toFixed(2)}px`;
+                backgroundLayer.style.translate = `${st.bpx.toFixed(2)}px ${st.bpy.toFixed(2)}px`;
+                const fadeTarget = st.hover ? 1 : held ? 0.8 : preview ? 0.52 : 0;
+                st.fade += (fadeTarget - st.fade) * 0.15;
                 const rxT = st.hover ? (st.my - 0.5) * 30 : 0, ryT = st.hover ? (0.5 - st.mx) * 30 : 0;
                 st.rx += (rxT - st.rx) * 0.2;
                 st.ry += (ryT - st.ry) * 0.2;
 
                 const settled = Math.abs(tx - st.mx) < 0.003 && Math.abs(ty - st.my) < 0.003;
-                const idle = !on && st.fade < 0.01 && settled && Math.abs(st.rx) < 0.05 && Math.abs(st.ry) < 0.05;
+                const idle = !on && st.fade < 0.01 && settled && Math.abs(st.px) < 0.05 && Math.abs(st.py) < 0.05 && Math.abs(st.bpx) < 0.05 && Math.abs(st.bpy) < 0.05 && Math.abs(st.rx) < 0.05 && Math.abs(st.ry) < 0.05;
                 if (idle) {
                     el.style.transform = '';
+                    artLayer.style.translate = '0px 0px';
+                    backgroundLayer.style.translate = '0px 0px';
                     draw(0);
                     st.raf = 0;
                     return;
@@ -1781,13 +2111,15 @@
                 // 套组级特效变体（无需改数据库结构，随每张卡一起存入 cards JSON）
                 const finishes = [];
                 for (const fin of currentFinishes) {
-                    finishes.push({ id: fin.id, name: fin.name, rate: fin.rate, gloss: fin.gloss, fxs: await uploadLayers(fin.fxs, `变体 ${fin.name}`) });
+                    finishes.push({ id: fin.id, name: fin.name, rate: fin.rate, maxFx: fin.maxFx, gloss: fin.gloss, fxs: await uploadLayers(fin.fxs, `变体 ${fin.name}`) });
                 }
                 // 1. 遍历槽位，将玩家上传的图片文件依次存入 Supabase Storage 存储桶
                 let processedCards = [];
                 for (let i = 0; i < currentDraftSlots.length; i++) {
                     let slot = currentDraftSlots[i];
                     let imageUrl = await ensureUploaded(slot.file, slot.image, `图片 ${i + 1}`);
+                        const background = slot.background || { image: '', zoom: 1, x: 0, y: 0, depth: 0 };
+                    const backgroundImage = await ensureUploaded(background.file, background.image, `槽位 ${i + 1} 背景图`);
 
                     const fxs = await uploadLayers(slot.fxs, `槽位 ${i + 1}`);
                     const fr = slot.frame;
@@ -1801,6 +2133,7 @@
                         name: slot.name,
                         rarity: slot.rarity,
                         image: imageUrl,
+                        background: { image: backgroundImage || '', zoom: background.zoom, x: background.x, y: background.y, depth: background.depth || 0 },
                         desc: slot.desc,
                         fxs,
                         art: slot.art,
@@ -2015,6 +2348,7 @@
                 const snap = { ...drawn };
                 delete snap.fx; delete snap.finishes; delete snap.remaining;
                 snap.fxs = [...getFxs(drawn), ...fin.fxs.map(({ type, p, tex, target }) => ({ type, p, tex, target }))];
+                snap.fxLimit = getFxs(drawn).length + (Number.isInteger(fin.maxFx) ? fin.maxFx : (fin.fxs.length || MAX_LAYERS));
                 snap.gloss = fin.gloss || drawn.gloss;
                 snap.finishName = fin.fxs.length ? fin.name : '';
                 snap.packId = pack.id;
