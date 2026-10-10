@@ -408,7 +408,7 @@
         .pack-contents h4 { font-size: 13px; color: #ffd700; margin-bottom: 8px; }
         .rate-summary { display: flex; gap: 12px; font-size: 12px; margin-bottom: 8px; flex-wrap: wrap; }
         .pc-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 8px; max-height: 190px; overflow-y: auto; }
-        .pc-item { display: flex; gap: 8px; align-items: center; background: #1e1e26; border-radius: 8px; padding: 6px; min-width: 0; }
+        .pc-item { cursor: zoom-in; display: flex; gap: 8px; align-items: center; background: #1e1e26; border-radius: 8px; padding: 6px; min-width: 0; }
         .pc-item img { width: 40px; height: 40px; object-fit: cover; border-radius: 6px; flex: none; }
         .pc-info { min-width: 0; font-size: 12px; }
         .pc-info b { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -416,6 +416,8 @@
         .r-N { color: #a0a0ab; } .r-SR { color: #409cff; } .r-SSR { color: #ffd700; }
 
         /* 3. 集卡册样式 */
+        .col-tab { background: #2b2b36; color: #a0a0ab; border: 1px solid #3f3f4e; border-radius: 8px; padding: 6px 12px; font-size: 12px; cursor: pointer; }
+        .col-tab.active { border-color: #ffd700; color: #ffd700; }
         .collection-grid {
             display: grid;
             grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
@@ -550,6 +552,7 @@
                 <h2 style="color: #ffd700;">📖 我的集卡册 (仅存放抽到的卡)</h2>
                 <span style="font-size: 12px; color: #a0a0ab;">分解返还：N卡=2金币 | SR卡=5金币 | SSR卡=20金币</span>
             </div>
+            <div id="collectionTabs" style="display: flex; gap: 8px; flex-wrap: wrap; width: 100%;"></div>
             <div class="collection-grid" id="collectionGrid"></div>
         </div>
 
@@ -595,7 +598,10 @@
                     { label: '色相', min: 0, max: 1, step: 0.01, def: 0.6 },
                     { label: '闪烁', min: 0, max: 1, step: 0.01, def: 0.6 }
                 ],
-                tex: [{ k: 'mask', label: '蒙版贴图（白=显示特效，可选）' }]
+                tex: [
+                    { k: 'sprite', label: '星点贴图（黑底，中心为星点形状，可选，缺省为内置光点）' },
+                    { k: 'mask', label: '蒙版贴图（白=显示特效，可选）' }
+                ]
             },
             glitter: {
                 id: 3, name: '闪粉 Glitter',
@@ -607,7 +613,10 @@
                     { label: '闪烁锐度', min: 1, max: 12, step: 0.5, def: 4 },
                     { label: '整体眩光', min: 0, max: 1, step: 0.01, def: 0.4 }
                 ],
-                tex: [{ k: 'mask', label: '蒙版贴图（白=显示特效，可选）' }]
+                tex: [
+                    { k: 'sprite', label: '闪粉贴图（黑底白色闪粉形状，可选，缺省为内置闪粉）' },
+                    { k: 'mask', label: '蒙版贴图（白=显示特效，可选）' }
+                ]
             },
             foil: {
                 id: 4, name: '金属镭射 Foil（法线）',
@@ -642,7 +651,7 @@
                 params: [
                     { label: '强度', min: 0, max: 1.5, step: 0.01, def: 0.8 },
                     { label: '图案缩放', min: 0.3, max: 6, step: 0.05, def: 1.5 },
-                    { label: '视差', min: 0, max: 2, step: 0.01, def: 0.6 },
+                    { label: '色彩随光标变化', min: 0, max: 2, step: 0.01, def: 0.6 },
                     { label: '色相偏移', min: 0, max: 1, step: 0.01, def: 0 },
                     { label: '对比度', min: 0.5, max: 4, step: 0.05, def: 1.6 },
                     { label: '饱和度', min: 0, max: 1, step: 0.01, def: 0.8 },
@@ -654,7 +663,7 @@
                 ]
             }
         };
-        const TEX_UNIT = { mask: 1, normal: 2, pattern: 3 };
+        const TEX_UNIT = { mask: 1, normal: 2, pattern: 3, sprite: 4 };
         const MAX_LAYERS = 3;
         const SUPPLY_DEFAULT = { N: 100, SR: 50, SSR: 10 };
 
@@ -718,6 +727,7 @@
         uniform sampler2D uBase, uMask, uNormal, uPattern;
         uniform vec4 uHas; uniform vec4 uAsp;
         uniform vec2 uGloss; uniform float uMode; uniform vec3 uFM;
+        uniform sampler2D uSprite; uniform float uHasSprite;
 
         vec2 cover(vec2 uv, float ta){
             vec2 s = vec2(1.0);
@@ -786,8 +796,17 @@
                     vec2 q = (p + d*uP[2]*(fi+1.0)*0.25) * uP[1]*(8.0+fi*6.0);
                     vec2 c = floor(q); vec2 f = fract(q)-0.5;
                     float r = hash21(c+fi*17.0);
-                    vec2 o = (vec2(hash21(c+3.1),hash21(c+7.7))-0.5)*0.6;
-                    float s = smoothstep(0.14, 0.0, length(f-o))*step(0.72, r);
+                    vec2 o = (vec2(hash21(c+3.1),hash21(c+7.7))-0.5)*0.2;
+                    vec2 gq = f-o; float dd = length(gq);
+                    float s;
+                    if (uHasSprite > 0.5) {
+                        vec2 su = gq/0.8+0.5;
+                        vec4 tc = texture2D(uSprite, su);
+                        s = dot(tc.rgb, vec3(0.3333))*tc.a*step(abs(su.x-0.5),0.5)*step(abs(su.y-0.5),0.5);
+                    } else {
+                        s = (1.0-smoothstep(0.0,0.03,dd)) + pow(max(0.0,1.0-dd/0.4), 2.5)*0.5;
+                    }
+                    s *= step(0.72, r);
                     float tw = mix(1.0, 0.5+0.5*sin(uTime*4.0+r*60.0), uP[5]);
                     acc += s*tw*hsv(fract(uP[4]+r*0.3), 0.35, 1.0);
                 }
@@ -799,16 +818,24 @@
                 col /= max(mx, 0.001);
                 a = clamp(mx, 0.0, 1.0)*uP[0]*mask;
             } else if (abs(uEffect-3.0) < 0.5) {
-                vec2 q = p*uP[1]*18.0;
+                vec2 q = p*uP[1]*36.0;
                 vec2 c = floor(q); vec2 f = fract(q);
                 float r = hash21(c);
-                vec2 o = vec2(hash21(c+1.7), hash21(c+9.2))*0.6+0.2;
+                vec2 o = vec2(hash21(c+1.7), hash21(c+9.2))*0.4+0.3;
                 vec2 g = f-o; float dist = length(g); float sz = uP[2]*0.5;
-                float shape = smoothstep(sz, 0.0, dist);
-                float cross = smoothstep(sz*0.5, 0.0, min(abs(g.x),abs(g.y)))*smoothstep(sz*2.5, 0.0, dist);
+                float shape;
+                if (uHasSprite > 0.5) {
+                    vec2 su = g/(sz*2.4)+0.5;
+                    vec4 tc = texture2D(uSprite, su);
+                    shape = dot(tc.rgb, vec3(0.3333))*tc.a*step(abs(su.x-0.5),0.5)*step(abs(su.y-0.5),0.5);
+                } else {
+                    float core = 1.0-smoothstep(sz*0.15, sz*0.6, dist);
+                    float cr = (1.0-smoothstep(0.0, sz*0.12, min(abs(g.x),abs(g.y))))*(1.0-smoothstep(sz*0.3, sz*1.2, dist));
+                    shape = core + cr*0.6;
+                }
                 float ph = sin(dot(d, vec2(r-0.5, hash21(c+4.4)-0.5)*40.0) + r*6.283 + uTime*1.5);
                 float vis = pow(clamp(ph*0.5+0.5, 0.0, 1.0), uP[4]);
-                float sp = (shape+cross*0.6)*vis*step(0.3, r);
+                float sp = shape*vis*step(0.3, r);
                 col = mix(vec3(1.0), hsv(fract(r*3.0), 0.7, 1.0), uP[3]);
                 float glare = smoothstep(0.8, 0.0, distance(p, m*asp))*uP[5]*0.3;
                 a = clamp(sp*(0.4+lum) + glare*lum, 0.0, 1.0)*uP[0]*mask;
@@ -841,7 +868,7 @@
                 col = hsv(uP[3], 0.45, 1.0);
                 a = clamp(b1*(0.6+0.8*lum), 0.0, 1.0)*uP[0]*mask;
             } else if (abs(uEffect-6.0) < 0.5) {
-                vec2 pu = (uv-0.5)*asp*uP[1] + 0.5 + d*uP[2]*0.5;
+                vec2 pu = (uv-0.5)*asp*uP[1] + 0.5;
                 float v;
                 if (uHas.w > 0.5) {
                     v = dot(texture2D(uPattern, fract(pu)).rgb, vec3(0.3333));
@@ -849,7 +876,7 @@
                     v = patt(pu, uP[6]);
                 }
                 v = clamp((v-0.5)*uP[4]+0.5, 0.0, 1.0);
-                col = hsv(fract(uP[3] + v*0.5 + dot(d, vec2(1.2,0.8))), uP[5], 1.0);
+                col = hsv(fract(uP[3] + v*0.5 + dot(d, vec2(1.2,0.8))*uP[2]*1.6), uP[5], 1.0);
                 a = clamp(v*(0.4+lum*0.8), 0.0, 1.0)*uP[0]*mask;
             }
             float fm = 1.0;
@@ -887,9 +914,9 @@
             gl.enableVertexAttribArray(loc);
             gl.vertexAttribPointer(loc, 2, gl.FLOAT, false, 0, 0);
             const u = {};
-            ['uRes', 'uMouse', 'uTime', 'uFade', 'uEffect', 'uBoxAsp', 'uP', 'uHas', 'uAsp', 'uBase', 'uMask', 'uNormal', 'uPattern', 'uGloss', 'uMode', 'uFM']
+            ['uRes', 'uMouse', 'uTime', 'uFade', 'uEffect', 'uBoxAsp', 'uP', 'uHas', 'uAsp', 'uBase', 'uMask', 'uNormal', 'uPattern', 'uGloss', 'uMode', 'uFM', 'uSprite', 'uHasSprite']
                 .forEach(n => u[n] = gl.getUniformLocation(prog, n));
-            gl.uniform1i(u.uBase, 0); gl.uniform1i(u.uMask, 1); gl.uniform1i(u.uNormal, 2); gl.uniform1i(u.uPattern, 3);
+            gl.uniform1i(u.uBase, 0); gl.uniform1i(u.uMask, 1); gl.uniform1i(u.uNormal, 2); gl.uniform1i(u.uPattern, 3); gl.uniform1i(u.uSprite, 4);
             const blank = gl.createTexture();
             gl.bindTexture(gl.TEXTURE_2D, blank);
             gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 1, 1, 0, gl.RGBA, gl.UNSIGNED_BYTE, new Uint8Array([0, 0, 0, 255]));
@@ -961,6 +988,10 @@
                 ['mask', 'normal', 'pattern'].forEach(k => {
                     bind(TEX_UNIT[k], used.includes(k) ? getTex(fx.tex && fx.tex[k]) : null, TEX_UNIT[k]);
                 });
+                const spr = used.includes('sprite') ? getTex(fx.tex && fx.tex.sprite) : null;
+                gl.activeTexture(gl.TEXTURE0 + TEX_UNIT.sprite);
+                gl.bindTexture(gl.TEXTURE_2D, spr ? spr.tex : blank);
+                gl.uniform1f(u.uHasSprite, spr ? 1 : 0);
 
                 const p = new Float32Array(8);
                 def.params.forEach((pd, i) => { p[i] = (fx && fx.p && fx.p[i] !== undefined) ? fx.p[i] : pd.def; });
@@ -1754,10 +1785,8 @@
         syncTplButtons();
 
         // --- 2. 抽卡中心逻辑（从 Supabase 加载卡包并定向抽取） ---
-        async function fetchCloudPacksAndRender() {
-            const container = document.getElementById('packSelectionContainer');
-            container.innerHTML = '<p style="font-size: 12px; color: #a0a0ab;">正在从云端同步卡包...</p>';
-
+        let packsLoaded = false;
+        async function loadCloudPacks() {
             try {
                 const { data, error } = await dbClient.from('card_packs').select('*');
                 if (error) throw error;
@@ -1774,10 +1803,16 @@
                         });
                     });
                 }
+                packsLoaded = true;
             } catch (err) {
                 console.warn('从云端加载卡包失败，使用默认卡包', err);
             }
+        }
 
+        async function fetchCloudPacksAndRender() {
+            const container = document.getElementById('packSelectionContainer');
+            container.innerHTML = '<p style="font-size: 12px; color: #a0a0ab;">正在从云端同步卡包...</p>';
+            await loadCloudPacks();
             renderPackList();
         }
 
@@ -1854,7 +1889,8 @@
                     <div class="pc-info"><b>${esc(c.name)}</b><span class="r-${esc(c.rarity)}">${esc(c.rarity)}</span> · <span>${pct}${stock}</span></div>
                 </div>`;
             }).join('');
-            box.innerHTML = `<h4>卡包内容与出率</h4><div class="rate-summary">${summary}</div>${finSummary}<div class="pc-list">${items}</div>`;
+            box.innerHTML = `<h4>卡包内容与出率（点击卡牌放大预览）</h4><div class="rate-summary">${summary}</div>${finSummary}<div class="pc-list">${items}</div>`;
+            box.querySelectorAll('.pc-item').forEach((el, i) => { el.onclick = () => openZoom(selectedPack.cards[i]); });
         }
 
         let pendingDrawCount = 1;
@@ -1923,6 +1959,8 @@
                 snap.fxs = [...getFxs(drawn), ...fin.fxs.map(({ type, p, tex, target }) => ({ type, p, tex, target }))];
                 snap.gloss = fin.gloss || drawn.gloss;
                 snap.finishName = fin.fxs.length ? fin.name : '';
+                snap.packId = pack.id;
+                snap.packTitle = pack.title;
                 drawnCards.push(snap);
 
                 // 只有抽到的卡片才正式存入集卡册
@@ -1954,22 +1992,46 @@
         }
 
         // --- 3. 集卡册与分解逻辑 ---
-        function renderCollection() {
+        // 旧集卡册记录没有 packId，官方卡包的卡按 id 归类，其余归为未分类
+        const packOfCard = c => c.packId !== undefined ? String(c.packId) : (defaultPack.cards.some(x => x.id === c.id) ? String(defaultPack.id) : 'unknown');
+        let collectionFilter = 'all';
+
+        async function renderCollection() {
+            if (!packsLoaded) await loadCloudPacks();
             const grid = document.getElementById('collectionGrid');
+            const tabs = document.getElementById('collectionTabs');
             const inv = getInventory();
             grid.innerHTML = '';
+            tabs.innerHTML = '';
 
-            const keys = Object.keys(inv);
-            if (keys.length === 0) {
+            const entries = Object.keys(inv).filter(k => inv[k].count > 0).map(k => ({ key: k, item: inv[k], pid: packOfCard(inv[k].card) }));
+            if (entries.length === 0) {
                 grid.innerHTML = '<p style="color: #666; grid-column: 1/-1; text-align: center;">集卡册空空如也，快去抽卡获取卡片吧！</p>';
                 return;
             }
 
-            keys.forEach(key => {
-                const item = inv[key];
-                if (item.count <= 0) return;
+            const groups = {};
+            entries.forEach(e => { (groups[e.pid] = groups[e.pid] || []).push(e); });
+            if (collectionFilter !== 'all' && !groups[collectionFilter]) collectionFilter = 'all';
+            const packOf = pid => cloudPacks.find(p => String(p.id) === pid);
+            const titleOf = pid => (packOf(pid) && packOf(pid).title) || groups[pid][0].item.card.packTitle || '未分类 / 已下架卡包';
+            const ownedOf = pid => new Set(groups[pid].map(e => e.item.card.id));
 
-                const c = item.card;
+            const addTab = (id, text) => {
+                const b = document.createElement('button');
+                b.className = 'col-tab' + (collectionFilter === id ? ' active' : '');
+                b.textContent = text;
+                b.onclick = () => { collectionFilter = id; renderCollection(); };
+                tabs.appendChild(b);
+            };
+            addTab('all', `全部（${entries.length}）`);
+            Object.keys(groups).forEach(pid => {
+                const pack = packOf(pid);
+                addTab(pid, `${titleOf(pid)}  ${ownedOf(pid).size}${pack ? '/' + pack.cards.length : ''}`);
+            });
+
+            const addEntry = e => {
+                const c = e.item.card;
                 const wrapper = document.createElement('div');
                 wrapper.className = 'collection-card-wrapper';
 
@@ -1979,13 +2041,42 @@
 
                 wrapper.innerHTML = `
                     <div class="card-meta">
-                        <span class="card-count">x${item.count}</span>
+                        <span class="card-count">x${e.item.count}</span>
                         <button class="recycle-btn">分解 (+${recycleValue}💰)</button>
                     </div>
                 `;
-                wrapper.querySelector('.recycle-btn').onclick = () => recycleCard(key, recycleValue);
+                wrapper.querySelector('.recycle-btn').onclick = () => recycleCard(e.key, recycleValue);
                 wrapper.prepend(buildCard(c, 200));
                 grid.appendChild(wrapper);
+            };
+
+            const pack = collectionFilter === 'all' ? null : packOf(collectionFilter);
+            if (!pack) {
+                (collectionFilter === 'all' ? entries : groups[collectionFilter]).forEach(addEntry);
+                return;
+            }
+
+            // 单个卡包视图：未获得的卡以暗色占位显示，直观看出还差哪些
+            const own = ownedOf(collectionFilter);
+            const missing = pack.cards.filter(c => !own.has(c.id)).length;
+            const summary = document.createElement('div');
+            summary.style.cssText = 'grid-column: 1/-1; font-size: 13px; color: #a0a0ab;';
+            summary.textContent = missing ? `已收集 ${own.size}/${pack.cards.length} 种，还差 ${missing} 种集齐` : `已集齐全部 ${pack.cards.length} 种！`;
+            grid.appendChild(summary);
+            pack.cards.forEach(c => {
+                const mine = groups[collectionFilter].filter(e => e.item.card.id === c.id);
+                if (mine.length) { mine.forEach(addEntry); return; }
+                const ph = document.createElement('div');
+                ph.className = 'collection-card-wrapper';
+                const cardEl = buildCard(c, 200, { zoom: false });
+                cardEl.style.filter = 'grayscale(1) brightness(0.3)';
+                cardEl.style.pointerEvents = 'none';
+                ph.appendChild(cardEl);
+                const meta = document.createElement('div');
+                meta.className = 'card-meta';
+                meta.innerHTML = '<span class="card-count" style="color:#666;">未获得</span>';
+                ph.appendChild(meta);
+                grid.appendChild(ph);
             });
         }
 
